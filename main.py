@@ -1,18 +1,14 @@
 import json
 import os
-import threading
 from datetime import time
 
 import discord
-import uvicorn
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
-from fastapi import FastAPI
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-
 TIMEZONE = "UTC"
 LEETCODE_SCHEDULE_TIME = time(hour=5, minute=00)
 GM_SCHEDULE_TIME = time(hour=0, minute=00)
@@ -20,19 +16,6 @@ GM_SCHEDULE_TIME = time(hour=0, minute=00)
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-
-app = FastAPI()
-
-
-@app.get("/")
-def read_root():
-    return {"status": "Discord bot is running!"}
-
-
-def run_fastapi():
-    """Run the FastAPI server."""
-    uvicorn.run(app, host="0.0.0.0", port=10000)
 
 
 def load_data():
@@ -136,7 +119,7 @@ async def on_ready():
 
             if channel.name == "gm":
                 global GM_CHANNEL_ID
-                GM_CHANNEL_ID == channel.id
+                GM_CHANNEL_ID = channel.id
 
     if (
         not leetcode_scheduled_message.is_running()
@@ -217,9 +200,6 @@ async def rotation_status(ctx):
 
 
 if __name__ == "__main__":
-    fastapi_thread = threading.Thread(target=run_fastapi)
-    fastapi_thread.start()
-
     if not TOKEN:
         raise ValueError("Missing DISCORD_BOT_TOKEN in environment variables")
     bot.run(TOKEN)
