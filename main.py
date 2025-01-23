@@ -1,21 +1,21 @@
 import json
 import os
+import threading
 from datetime import time
 
 import discord
+import uvicorn
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
-
 from fastapi import FastAPI
-import uvicorn
-import threading
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
 TIMEZONE = "UTC"
-SCHEDULE_TIME = time(hour=5, minute=00)
+LEETCODE_SCHEDULE_TIME = time(hour=5, minute=00)
+GM_SCHEDULE_TIME = time(hour=0, minute=00)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -24,9 +24,11 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 app = FastAPI()
 
+
 @app.get("/")
 def read_root():
     return {"status": "Discord bot is running!"}
+
 
 def run_fastapi():
     """Run the FastAPI server."""
@@ -66,11 +68,11 @@ def save_data(data):
         json.dump(data, f, indent=4)
 
 
-@tasks.loop(time=SCHEDULE_TIME)
-async def scheduled_message():
-    channel = bot.get_channel(CHANNEL_ID)
+@tasks.loop(time=LEETCODE_SCHEDULE_TIME)
+async def leetcode_scheduled_message():
+    channel = bot.get_channel(LEETCODE_CHANNEL_ID)
     if not channel:
-        print(f"Could not find channel with ID {CHANNEL_ID}")
+        print(f"Could not find channel with ID {LEETCODE_CHANNEL_ID}")
         return
 
     data = load_data()
@@ -102,6 +104,21 @@ async def scheduled_message():
         print(f"Error sending message: {str(e)}")
 
 
+@tasks.loop(time=GM_SCHEDULE_TIME)
+async def gm_scheduled_message():
+    channel = bot.get_channel(GM_CHANNEL_ID)
+    if not channel:
+        print(f"Could not find channel with ID {GM_CHANNEL_ID}")
+        return
+
+    try:
+        await channel.send("gm")
+        print("Sent message Good Morning Message")
+
+    except discord.DiscordException as e:
+        print(f"Error sending message: {str(e)}")
+
+
 @bot.event
 async def on_ready():
     print(f"{bot.user} has connected to Discord!")
@@ -112,12 +129,21 @@ async def on_ready():
             print(
                 f" - Channel: {channel.name} (ID: {channel.id}, Type: {channel.type})"
             )
-            if channel.name == "leetcode-and-prep":
-                global CHANNEL_ID
-                CHANNEL_ID = channel.id
 
-    if not scheduled_message.is_running():
-        scheduled_message.start()
+            if channel.name == "leetcode-and-prep":
+                global LEETCODE_CHANNEL_ID
+                LEETCODE_CHANNEL_ID = channel.id
+
+            if channel.name == "gm":
+                global GM_CHANNEL_ID
+                GM_CHANNEL_ID == channel.id
+
+    if (
+        not leetcode_scheduled_message.is_running()
+        and not gm_scheduled_message.is_running()
+    ):
+        leetcode_scheduled_message.start()
+        gm_scheduled_message.start()
 
 
 @bot.command()
