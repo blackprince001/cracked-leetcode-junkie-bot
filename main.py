@@ -331,6 +331,82 @@ async def think(ctx, *, problem: str):
         await ctx.send(response)
 
 
+@bot.command()
+async def summarize(ctx, scope: str = "channel", message_limit: int = 50):
+    """
+    Generate a summary of recent activity in the channel or guild
+    Usage: !summarize [channel|guild] [message_limit=50]
+    """
+    # Validate inputs
+    scope = scope.lower()
+    if scope not in ["channel", "guild"]:
+        await ctx.send("Invalid scope. Use 'channel' or 'guild'.")
+        return
+    
+    if message_limit < 5 or message_limit > 200:
+        await ctx.send("Message limit must be between 5 and 200.")
+        return
+
+    async with ctx.typing():
+        # Collect messages based on scope
+        messages = []
+        
+        if scope == "channel":
+            # Get messages from current channel
+            async for message in ctx.channel.history(limit=message_limit):
+                if not message.author.bot:  # Skip bot messages
+                    messages.append(f"{message.author.display_name}: {message.content}")
+        else:
+            # Get messages from all text channels in guild
+            for channel in ctx.guild.text_channels:
+                try:
+                    async for message in channel.history(limit=5):  # Fewer per channel for guild-wide
+                        if not message.author.bot:
+                            messages.append(f"{channel.name} - {message.author.display_name}: {message.content}")
+                        if len(messages) >= message_limit:
+                            break
+                    if len(messages) >= message_limit:
+                        break
+                except discord.Forbidden:
+                    continue  # Skip channels we can't read
+        
+        if not messages:
+            await ctx.send("No messages found to summarize.")
+            return
+        
+        # Prepare prompt for AI
+        messages_text = "\n".join(messages[-message_limit:])  # Ensure we don't exceed limit
+        prompt = (
+            f"Please analyze these recent Discord messages and provide a concise summary "
+            f"of the main topics, discussions, and notable events. "
+            f"Focus on key points and trends:\n\n{messages_text}"
+        )
+        
+        system_msg = (
+            "You are a Discord community analyst. Provide clear, concise summaries of "
+            "channel activity. Identify main topics, ongoing discussions, and notable "
+            "events. Keep it brief but informative."
+        )
+        
+        # Get summary from AI
+        summary = await call_deepseek_ai(
+            prompt, 
+            max_tokens=1000, 
+            system_message=system_msg
+        )
+        
+        # Send the summary
+        title = f"📊 Summary of recent {scope} activity:"
+        response = f"{title}\n\n{summary}"
+        
+        if len(response) > 2000:
+            chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
+            for chunk in chunks:
+                await ctx.send(chunk)
+        else:
+            await ctx.send(response)
+
+            
 @tasks.loop(time=GM_SCHEDULE_TIME)
 async def gm_scheduled_message():
     channel = bot.get_channel(GM_CHANNEL_ID)
