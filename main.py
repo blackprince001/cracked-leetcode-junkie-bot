@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")  # Add this to your .env file
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # Add this to your .env file
 TIMEZONE = "UTC"
 LEETCODE_SCHEDULE_TIME = time(hour=5, minute=00)
 GM_SCHEDULE_TIME = time(hour=0, minute=00)
 
 # DeepSeek API endpoint
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -25,177 +25,197 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 
 
-# def load_data():
-#     default_data = {"messages": [], "last_used_index": 0}
+def load_data():
+    default_data = {"messages": [], "last_used_index": 0}
 
-#     try:
-#         with open("messages.json", "r") as f:
-#             data = json.load(f)
+    try:
+        with open("messages.json", "r") as f:
+            data = json.load(f)
 
-#             if not isinstance(data, dict):
-#                 print("Invalid data format in messages.json, resetting to default.")
-#                 return default_data
+            if not isinstance(data, dict):
+                print("Invalid data format in messages.json, resetting to default.")
+                return default_data
 
-#             if "messages" not in data or "last_used_index" not in data:
-#                 print("Missing keys in messages.json, resetting to default.")
-#                 return default_data
+            if "messages" not in data or "last_used_index" not in data:
+                print("Missing keys in messages.json, resetting to default.")
+                return default_data
 
-#             return data
+            return data
 
-#     except FileNotFoundError:
-#         print("messages.json not found, creating with default data.")
-#         save_data(default_data)
-#         return default_data
+    except FileNotFoundError:
+        print("messages.json not found, creating with default data.")
+        save_data(default_data)
+        return default_data
 
-#     except json.JSONDecodeError:
-#         print("Error decoding messages.json, resetting to default.")
-#         save_data(default_data)
-#         return default_data
-
-
-# def save_data(data):
-#     with open("messages.json", "w") as f:
-#         json.dump(data, f, indent=4)
+    except json.JSONDecodeError:
+        print("Error decoding messages.json, resetting to default.")
+        save_data(default_data)
+        return default_data
 
 
-# @tasks.loop(time=LEETCODE_SCHEDULE_TIME)
-# async def leetcode_scheduled_message():
-#     channel = bot.get_channel(LEETCODE_CHANNEL_ID)
-#     if not channel:
-#         print(f"Could not find channel with ID {LEETCODE_CHANNEL_ID}")
-#         return
-
-#     data = load_data()
-#     messages = data["messages"]
-
-#     if not messages:
-#         print("No messages found in messages.json")
-#         return
-
-#     # Get and validate current index
-#     current_index = data["last_used_index"]
-#     if current_index >= len(messages):
-#         current_index = 0
-
-#     try:
-#         # Send the current message
-#         message_content = messages[current_index]
-#         msg = await channel.send("Question of the Day\n\n" + message_content["content"])
-#         await msg.create_thread(name=message_content["thread_title"])
-
-#         # Update index for next run
-#         new_index = (current_index + 1) % len(messages)
-#         data["last_used_index"] = new_index
-#         save_data(data)
-
-#         print(f"Sent message {current_index + 1}/{len(messages)}")
-
-#     except discord.DiscordException as e:
-#         print(f"Error sending message: {str(e)}")
-
-# @bot.command()
-# async def add_message(ctx, *, content: str):
-#     if "|" not in content:
-#         await ctx.send(
-#             "Error: Use format: `!add_message Message Content | Thread Title`"
-#         )
-#         return
-
-#     content_part, thread_part = content.split("|", 1)
-#     content_part = content_part.strip()
-#     thread_part = thread_part.strip()
-
-#     if not content_part or not thread_part:
-#         await ctx.send("Error: Both message content and thread title are required")
-#         return
-
-#     new_message = {"content": content_part, "thread_title": thread_part}
-
-#     data = load_data()
-#     data["messages"].append(new_message)
-#     save_data(data)
-
-#     await ctx.send(f'Message added! Total messages: {len(data["messages"])}')
+def save_data(data):
+    with open("messages.json", "w") as f:
+        json.dump(data, f, indent=4)
 
 
-# @bot.command()
-# async def list_messages(ctx):
-#     data = load_data()
-#     messages = data["messages"]
+@tasks.loop(time=LEETCODE_SCHEDULE_TIME)
+async def leetcode_scheduled_message():
+    channel = bot.get_channel(LEETCODE_CHANNEL_ID)
+    if not channel:
+        print(f"Could not find channel with ID {LEETCODE_CHANNEL_ID}")
+        return
 
-#     if not messages:
-#         await ctx.send("No messages in rotation!")
-#         return
+    data = load_data()
+    messages = data["messages"]
 
-#     response = [
-#         f"**Message Rotation (Current: {data['last_used_index'] + 1}/{len(messages)})**"
-#     ]
-#     for idx, msg in enumerate(messages, 1):
-#         response.append(
-#             f"{idx}. {msg['content'][:50]}... | Thread: {msg['thread_title']}"
-#         )
+    if not messages:
+        print("No messages found in messages.json")
+        return
 
-#     await ctx.send("\n".join(response[:15]))
+    # Get and validate current index
+    current_index = data["last_used_index"]
+    if current_index >= len(messages):
+        current_index = 0
+
+    try:
+        # Send the current message
+        message_content = messages[current_index]
+        msg = await channel.send("Question of the Day\n\n" + message_content["content"])
+        await msg.create_thread(name=message_content["thread_title"])
+
+        # Update index for next run
+        new_index = (current_index + 1) % len(messages)
+        data["last_used_index"] = new_index
+        save_data(data)
+
+        print(f"Sent message {current_index + 1}/{len(messages)}")
+
+    except discord.DiscordException as e:
+        print(f"Error sending message: {str(e)}")
+
+@bot.command()
+async def add_message(ctx, *, content: str):
+    if "|" not in content:
+        await ctx.send(
+            "Error: Use format: `!add_message Message Content | Thread Title`"
+        )
+        return
+
+    content_part, thread_part = content.split("|", 1)
+    content_part = content_part.strip()
+    thread_part = thread_part.strip()
+
+    if not content_part or not thread_part:
+        await ctx.send("Error: Both message content and thread title are required")
+        return
+
+    new_message = {"content": content_part, "thread_title": thread_part}
+
+    data = load_data()
+    data["messages"].append(new_message)
+    save_data(data)
+
+    await ctx.send(f'Message added! Total messages: {len(data["messages"])}')
 
 
-# @bot.command()
-# async def remove_message(ctx, index: int):
-#     data = load_data()
-#     messages = data["messages"]
+@bot.command()
+async def list_messages(ctx):
+    data = load_data()
+    messages = data["messages"]
 
-#     if 1 <= index <= len(messages):
-#         removed = messages.pop(index - 1)
-#         if data["last_used_index"] >= len(messages):
-#             data["last_used_index"] = 0
-#         save_data(data)
-#         await ctx.send(f'Removed: "{removed["content"][:50]}..."')
-#     else:
-#         await ctx.send(f"Invalid index! Use 1-{len(messages)}")
+    if not messages:
+        await ctx.send("No messages in rotation!")
+        return
+
+    response = [
+        f"**Message Rotation (Current: {data['last_used_index'] + 1}/{len(messages)})**"
+    ]
+    for idx, msg in enumerate(messages, 1):
+        response.append(
+            f"{idx}. {msg['content'][:50]}... | Thread: {msg['thread_title']}"
+        )
+
+    await ctx.send("\n".join(response[:15]))
 
 
-async def call_deepseek_ai(prompt: str, max_tokens: int = 512, system_message: str = None) -> str:
+@bot.command()
+async def remove_message(ctx, index: int):
+    data = load_data()
+    messages = data["messages"]
+
+    if 1 <= index <= len(messages):
+        removed = messages.pop(index - 1)
+        if data["last_used_index"] >= len(messages):
+            data["last_used_index"] = 0
+        save_data(data)
+        await ctx.send(f'Removed: "{removed["content"][:50]}..."')
+    else:
+        await ctx.send(f"Invalid index! Use 1-{len(messages)}")
+
+
+async def call_gemini_ai(prompt: str, system_message: str = None) -> str:
     """
-    Call DeepSeek API with the given prompt
+    Call Gemini API with the given prompt
     """
     headers = {
-        'Authorization': f'Bearer {DEEPSEEK_API_KEY}',
         'Content-Type': 'application/json'
     }
     
-    # Build messages array for chat completion
-    messages = []
-    
+    # Build the full prompt with system message if provided
+    full_prompt = prompt
     if system_message:
-        messages.append({"role": "system", "content": system_message})
-    
-    messages.append({"role": "user", "content": prompt})
+        full_prompt = f"{system_message}\n\nUser: {prompt}"
     
     data = {
-        "model": "deepseek-chat",
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": 0.7,
-        "top_p": 0.9,
-        "stream": False
+        "contents": [{
+            "parts": [{
+                "text": full_prompt
+            }]
+        }],
+        "generationConfig": {
+            "temperature": 0.7,
+            "topP": 0.9,
+            "maxOutputTokens": 1000,
+            "stopSequences": []
+        },
+        "safetySettings": [
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            }
+        ]
     }
     
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(DEEPSEEK_API_URL, headers=headers, json=data) as response:
+            async with session.post(GEMINI_API_URL, headers=headers, json=data) as response:
                 if response.status == 200:
                     result = await response.json()
-                    # Extract the response from DeepSeek format
-                    if 'choices' in result and len(result['choices']) > 0:
-                        return result['choices'][0]['message']['content']
-                    else:
-                        return "No response received from DeepSeek"
+                    # Extract the response from Gemini format
+                    if 'candidates' in result and len(result['candidates']) > 0:
+                        candidate = result['candidates'][0]
+                        if 'content' in candidate and 'parts' in candidate['content']:
+                            return candidate['content']['parts'][0]['text']
+                    return "No response received from Gemini"
                 else:
                     error_text = await response.text()
                     return f"Error: API returned status {response.status}: {error_text}"
     except asyncio.TimeoutError:
         return "Error: Request timed out"
     except Exception as e:
-        return f"Error calling DeepSeek API: {str(e)}"
+        return f"Error calling Gemini API: {str(e)}"
 
 
 @bot.command()
@@ -210,7 +230,7 @@ async def ask(ctx, *, question: str):
     
     # Send typing indicator
     async with ctx.typing():
-        response = await call_deepseek_ai(question)
+        response = await call_gemini_ai(question)
     
     # Discord has a 2000 character limit, so we need to handle long responses
     if len(response) > 2000:
@@ -236,7 +256,7 @@ async def chat(ctx, *, message: str):
     system_msg = "You are a helpful and friendly AI assistant in a Discord chat. Respond naturally and conversationally."
     
     async with ctx.typing():
-        response = await call_deepseek_ai(message, system_message=system_msg)
+        response = await call_gemini_ai(message, system_message=system_msg)
     
     if len(response) > 2000:
         chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
@@ -260,7 +280,7 @@ async def explain(ctx, *, topic: str):
     prompt = f"Please explain {topic}:"
     
     async with ctx.typing():
-        response = await call_deepseek_ai(prompt, max_tokens=800, system_message=system_msg)
+        response = await call_gemini_ai(prompt, max_tokens=800, system_message=system_msg)
     
     if len(response) > 2000:
         chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
@@ -283,7 +303,7 @@ async def code_help(ctx, *, coding_question: str):
     system_msg = "You are an expert programming assistant. Provide clear explanations and code examples when appropriate. Format code using markdown code blocks."
     
     async with ctx.typing():
-        response = await call_deepseek_ai(coding_question, max_tokens=1000, system_message=system_msg)
+        response = await call_gemini_ai(coding_question, max_tokens=1000, system_message=system_msg)
     
     if len(response) > 2000:
         chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
@@ -299,12 +319,12 @@ async def ai_status(ctx):
     Check if the DeepSeek API is working
     """
     async with ctx.typing():
-        test_response = await call_deepseek_ai("Hello, this is a test message. Please respond with 'DeepSeek AI is working correctly!'")
+        test_response = await call_gemini_ai("Hello, this is a test message. Please respond with 'DeepSeek AI is working correctly!'")
     
     if "Error" in test_response:
-        await ctx.send(f"❌ DeepSeek API Error: {test_response}")
+        await ctx.send(f"❌ GEMINI API Error: {test_response}")
     else:
-        await ctx.send(f"✅ DeepSeek API is working! Response: {test_response}")
+        await ctx.send(f"✅ GEMINI API is working! Response: {test_response}")
 
 
 @bot.command()
@@ -321,7 +341,7 @@ async def think(ctx, *, problem: str):
     prompt = f"Please think through this step-by-step: {problem}"
     
     async with ctx.typing():
-        response = await call_deepseek_ai(prompt, max_tokens=1000, system_message=system_msg)
+        response = await call_gemini_ai(prompt, max_tokens=1000, system_message=system_msg)
     
     if len(response) > 2000:
         chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
@@ -389,7 +409,7 @@ async def summarize(ctx, scope: str = "channel", message_limit: int = 50):
         )
         
         # Get summary from AI
-        summary = await call_deepseek_ai(
+        summary = await call_gemini_ai(
             prompt, 
             max_tokens=1000, 
             system_message=system_msg
@@ -433,7 +453,7 @@ async def on_ready():
                 f" - Channel: {channel.name} (ID: {channel.id}, Type: {channel.type})"
             )
 
-            if channel.name == "leetcode-and-prep":
+            if  channel.name == "dsa":
                 global LEETCODE_CHANNEL_ID
                 LEETCODE_CHANNEL_ID = channel.id
 
@@ -447,7 +467,12 @@ async def on_ready():
 
 @bot.command()
 async def rotation_status(ctx):
-    await ctx.send("nothing in rotation now")
+    data = load_data()
+    await ctx.send(
+        f"**Current Rotation Status:**\n"
+        f"Next message: {data['last_used_index'] + 1}/{len(data['messages'])}\n"
+        f"Total messages: {len(data['messages'])}"
+    )
 
 
 @bot.command()
@@ -474,6 +499,7 @@ async def help_ai(ctx):
 `!code_help <question>` - Get help with coding questions
 `!think <problem>` - Ask AI to think step-by-step about a problem
 `!ai_status` - Check if the DeepSeek API is working
+`!summarize [channel|guild] [message_limit=50]` - Generate a summary of recent activity in the channel or guild
 
 **Examples:**
 `!ask What is the capital of France?`
@@ -488,6 +514,6 @@ async def help_ai(ctx):
 if __name__ == "__main__":
     if not TOKEN:
         raise ValueError("Missing DISCORD_BOT_TOKEN in environment variables")
-    if not DEEPSEEK_API_KEY:
-        raise ValueError("Missing DEEPSEEK_API_KEY in environment variables")
+    if not GEMINI_API_KEY:
+        raise ValueError("Missing GEMINI_API_KEY in environment variables")
     bot.run(TOKEN)
