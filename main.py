@@ -463,6 +463,9 @@ async def on_ready():
 
     if not gm_scheduled_message.is_running():
         gm_scheduled_message.start()
+    
+    if not leetcode_scheduled_message.is_running():
+        leetcode_scheduled_message.start()
 
 
 @bot.command()
