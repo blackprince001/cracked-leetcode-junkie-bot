@@ -280,7 +280,7 @@ async def explain(ctx, *, topic: str):
     prompt = f"Please explain {topic}:"
     
     async with ctx.typing():
-        response = await call_gemini_ai(prompt, max_tokens=800, system_message=system_msg)
+        response = await call_gemini_ai(prompt, system_message=system_msg)
     
     if len(response) > 2000:
         chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
@@ -303,7 +303,7 @@ async def code_help(ctx, *, coding_question: str):
     system_msg = "You are an expert programming assistant. Provide clear explanations and code examples when appropriate. Format code using markdown code blocks."
     
     async with ctx.typing():
-        response = await call_gemini_ai(coding_question, max_tokens=1000, system_message=system_msg)
+        response = await call_gemini_ai(coding_question, system_message=system_msg)
     
     if len(response) > 2000:
         chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
@@ -341,7 +341,7 @@ async def think(ctx, *, problem: str):
     prompt = f"Please think through this step-by-step: {problem}"
     
     async with ctx.typing():
-        response = await call_gemini_ai(prompt, max_tokens=1000, system_message=system_msg)
+        response = await call_gemini_ai(prompt, system_message=system_msg)
     
     if len(response) > 2000:
         chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
@@ -411,7 +411,6 @@ async def summarize(ctx, scope: str = "channel", message_limit: int = 50):
         # Get summary from AI
         summary = await call_gemini_ai(
             prompt, 
-            max_tokens=1000, 
             system_message=system_msg
         )
         
