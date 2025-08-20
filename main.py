@@ -80,7 +80,7 @@ async def leetcode_scheduled_message():
     try:
         # Send the current message
         message_content = messages[current_index]
-        msg = await channel.send("Question of the Day\n\n" + message_content["content"])
+        msg = await channel.send("Have you practiced today? A practice a day keeps rust away! \n\nQuestion of the Day\n\n" + message_content["content"])
         await msg.create_thread(name=message_content["thread_title"])
 
         # Update index for next run
