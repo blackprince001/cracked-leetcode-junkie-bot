@@ -21,7 +21,7 @@ GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemin
 
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
+bot = commands.Bot(command_prefix="/", intents=intents, help_command=None)
 
 def load_data():
     default_data = {"messages": [], "last_used_index": 0}
@@ -515,36 +515,36 @@ async def ai_help(ctx):
     help_text = """
 **Bot AI Commands:**
 
-`!ask <question>` - Ask any question to the AI  
-`!chat <message>` - Have a casual conversation with the AI  
-`!explain <topic>` - Get an explanation of a topic  
-`!code_help <question>` - Get help with coding questions  
-`!think <problem>` - Ask AI to think step-by-step about a problem  
-`!ai_status` - Check if the Gemini API is working  
-`!summarize [channel|guild] [message_limit=50]` - Generate a summary of recent activity in the channel or guild
+`/ask <question>` - Ask any question to the AI  
+`/chat <message>` - Have a casual conversation with the AI  
+`/explain <topic>` - Get an explanation of a topic  
+`/code_help <question>` - Get help with coding questions  
+`/think <problem>` - Ask AI to think step-by-step about a problem  
+`/ai_status` - Check if the Gemini API is working  
+`/summarize [channel|guild] [message_limit=50]` - Generate a summary of recent activity in the channel or guild
 
 **Normal Bot / Utility Commands:**
 
-`!add_message <content> | <thread title>` - Add a message to the leetcode rotation (use `|` to separate content and thread title)  
-`!list_messages` - List messages currently in the rotation  
-`!remove_message <index>` - Remove a message from the rotation by 1-based index  
-`!rotation_status` - Show current rotation index and total messages  
-`!ping` - Responds with 'pong'  
-`!greet_user [username]` - Greet a user (defaults to 'everyone')
+`/add_message <content> | <thread title>` - Add a message to the leetcode rotation (use `|` to separate content and thread title)  
+`/list_messages` - List messages currently in the rotation  
+`/remove_message <index>` - Remove a message from the rotation by 1-based index  
+`/rotation_status` - Show current rotation index and total messages  
+`/ping` - Responds with 'pong'  
+`/greet_user [username]` - Greet a user (defaults to 'everyone')
 
 **Scheduled Behavior:**
 - Daily leetcode question(s) posted to the `dsa` channel at configured time (uses messages.json rotation).  
 - Daily "gm" message posted to the `gm` channel at configured time.
 
 **Examples:**
-`!ask What is the capital of France?`  
-`!chat Hello, how are you today?`  
-`!explain machine learning`  
-`!code_help How do I create a list in Python?`  
-`!think How do I solve 2x + 5 = 15?`  
-`!add_message Reverse a linked list | Linked List - Reverse`  
-`!list_messages`  
-`!remove_message 3`
+`/ask What is the capital of France?`  
+`/chat Hello, how are you today?`  
+`/explain machine learning`  
+`/code_help How do I create a list in Python?`  
+`/think How do I solve 2x + 5 = 15?`  
+`/add_message Reverse a linked list | Linked List - Reverse`  
+`/list_messages`  
+`/remove_message 3`
 
 If you need help with a specific command, mention it and I'll show usage.
 """
