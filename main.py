@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # Add this to your .env file
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TIMEZONE = "UTC"
 LEETCODE_SCHEDULE_TIME = time(hour=5, minute=00)
 GM_SCHEDULE_TIME = time(hour=0, minute=00)
@@ -21,9 +21,7 @@ GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemin
 
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 def load_data():
     default_data = {"messages": [], "last_used_index": 0}
@@ -77,21 +75,43 @@ async def leetcode_scheduled_message():
     if current_index >= len(messages):
         current_index = 0
 
-    try:
-        # Send the current message
-        message_content = messages[current_index]
-        msg = await channel.send("Have you practiced today? A practice a day keeps rust away! \n\nQuestion of the Day\n\n" + message_content["content"])
-        await msg.create_thread(name=message_content["thread_title"])
+    # Prepare to send up to 2 messages
+    if len(messages) == 1:
+        indices_to_send = [current_index]
+    else:
+        indices_to_send = [current_index, (current_index + 1) % len(messages)]
 
-        # Update index for next run
-        new_index = (current_index + 1) % len(messages)
-        data["last_used_index"] = new_index
+    sent_count = 0
+    for idx in indices_to_send:
+        try:
+            message_content = messages[idx]
+            msg = await channel.send(
+                "Have you practiced today? A practice a day keeps rust away! \n\nQuestion of the Day\n\n"
+                + message_content["content"]
+            )
+            # Create a thread for each posted question
+            thread_title = message_content.get("thread_title", f"Question {idx+1}")
+            try:
+                await msg.create_thread(name=thread_title)
+            except discord.DiscordException as e:
+                print(f"Warning: failed to create thread for message {idx}: {e}")
+
+            sent_count += 1
+            print(f"Sent message index {idx + 1}/{len(messages)}")
+
+        except discord.DiscordException as e:
+            print(f"Error sending message index {idx}: {str(e)}")
+        except Exception as e:
+            print(f"Unexpected error sending message index {idx}: {str(e)}")
+
+    if sent_count > 0:
+        # Advance the rotation by the number of messages actually sent
+        data["last_used_index"] = (current_index + sent_count) % len(messages)
         save_data(data)
+        print(f"Updated rotation index to {data['last_used_index']}")
+    else:
+        print("No messages were sent this run.")
 
-        print(f"Sent message {current_index + 1}/{len(messages)}")
-
-    except discord.DiscordException as e:
-        print(f"Error sending message: {str(e)}")
 
 @bot.command()
 async def add_message(ctx, *, content: str):
@@ -488,28 +508,46 @@ async def greet_user(ctx, user: str = "everyone"):
 
 
 @bot.command()
-async def help_ai(ctx):
+async def ai_help(ctx):
     """
-    Show available AI commands
+    Show available commands (AI + normal)
     """
     help_text = """
-**DeepSeek AI Commands Available:**
+**Bot AI Commands:**
 
-`!ask <question>` - Ask any question to the AI
-`!chat <message>` - Have a casual conversation with the AI
-`!explain <topic>` - Get an explanation of a topic
-`!code_help <question>` - Get help with coding questions
-`!think <problem>` - Ask AI to think step-by-step about a problem
-`!ai_status` - Check if the DeepSeek API is working
+`!ask <question>` - Ask any question to the AI  
+`!chat <message>` - Have a casual conversation with the AI  
+`!explain <topic>` - Get an explanation of a topic  
+`!code_help <question>` - Get help with coding questions  
+`!think <problem>` - Ask AI to think step-by-step about a problem  
+`!ai_status` - Check if the Gemini API is working  
 `!summarize [channel|guild] [message_limit=50]` - Generate a summary of recent activity in the channel or guild
 
+**Normal Bot / Utility Commands:**
+
+`!add_message <content> | <thread title>` - Add a message to the leetcode rotation (use `|` to separate content and thread title)  
+`!list_messages` - List messages currently in the rotation  
+`!remove_message <index>` - Remove a message from the rotation by 1-based index  
+`!rotation_status` - Show current rotation index and total messages  
+`!ping` - Responds with 'pong'  
+`!greet_user [username]` - Greet a user (defaults to 'everyone')
+
+**Scheduled Behavior:**
+- Daily leetcode question(s) posted to the `dsa` channel at configured time (uses messages.json rotation).  
+- Daily "gm" message posted to the `gm` channel at configured time.
+
 **Examples:**
-`!ask What is the capital of France?`
-`!chat Hello, how are you today?`
-`!explain machine learning`
-`!code_help How do I create a list in Python?`
-`!think How do I solve 2x + 5 = 15?`
-    """
+`!ask What is the capital of France?`  
+`!chat Hello, how are you today?`  
+`!explain machine learning`  
+`!code_help How do I create a list in Python?`  
+`!think How do I solve 2x + 5 = 15?`  
+`!add_message Reverse a linked list | Linked List - Reverse`  
+`!list_messages`  
+`!remove_message 3`
+
+If you need help with a specific command, mention it and I'll show usage.
+"""
     await ctx.send(help_text)
 
 
