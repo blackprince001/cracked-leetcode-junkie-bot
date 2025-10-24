@@ -372,7 +372,7 @@ async def think(ctx, *, problem: str):
 
 
 @bot.command()
-async def summarize(ctx, scope: str = "channel", message_limit: int = 50):
+async def summarize(ctx, scope: str = "channel", message_limit: int = 200):
     """
     Generate a summary of recent activity in the channel or guild
     Usage: !summarize [channel|guild] [message_limit=50]
@@ -382,7 +382,9 @@ async def summarize(ctx, scope: str = "channel", message_limit: int = 50):
     if scope not in ["channel", "guild"]:
         await ctx.send("Invalid scope. Use 'channel' or 'guild'.")
         return
-    
+   
+    message_limit = int(message_limit)
+
     if message_limit < 5 or message_limit > 200:
         await ctx.send("Message limit must be between 5 and 200.")
         return
@@ -400,7 +402,7 @@ async def summarize(ctx, scope: str = "channel", message_limit: int = 50):
             # Get messages from all text channels in guild
             for channel in ctx.guild.text_channels:
                 try:
-                    async for message in channel.history(limit=5):  # Fewer per channel for guild-wide
+                    async for message in channel.history(limit=20):  # Fewer per channel for guild-wide
                         if not message.author.bot:
                             messages.append(f"{channel.name} - {message.author.display_name}: {message.content}")
                         if len(messages) >= message_limit:
