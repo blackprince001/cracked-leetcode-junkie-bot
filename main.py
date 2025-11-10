@@ -1,9 +1,9 @@
+import asyncio
 import json
 import os
 from datetime import time
-import aiohttp
-import asyncio
 
+import aiohttp
 import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
@@ -17,11 +17,12 @@ LEETCODE_SCHEDULE_TIME = time(hour=5, minute=00)
 GM_SCHEDULE_TIME = time(hour=0, minute=00)
 
 # DeepSeek API endpoint
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="/", intents=intents, help_command=None)
+
 
 def load_data():
     default_data = {"messages": [], "last_used_index": 0}
@@ -90,7 +91,7 @@ async def leetcode_scheduled_message():
                 + message_content["content"]
             )
             # Create a thread for each posted question
-            thread_title = message_content.get("thread_title", f"Question {idx+1}")
+            thread_title = message_content.get("thread_title", f"Question {idx + 1}")
             try:
                 await msg.create_thread(name=thread_title)
             except discord.DiscordException as e:
@@ -135,7 +136,7 @@ async def add_message(ctx, *, content: str):
     data["messages"].append(new_message)
     save_data(data)
 
-    await ctx.send(f'Message added! Total messages: {len(data["messages"])}')
+    await ctx.send(f"Message added! Total messages: {len(data['messages'])}")
 
 
 @bot.command()
@@ -177,57 +178,53 @@ async def call_gemini_ai(prompt: str, system_message: str = None) -> str:
     """
     Call Gemini API with the given prompt
     """
-    headers = {
-        'Content-Type': 'application/json'
-    }
-    
+    headers = {"Content-Type": "application/json"}
+
     # Build the full prompt with system message if provided
     full_prompt = prompt
     if system_message:
         full_prompt = f"{system_message}\n\nUser: {prompt}"
-    
+
     data = {
-        "contents": [{
-            "parts": [{
-                "text": full_prompt
-            }]
-        }],
+        "contents": [{"parts": [{"text": full_prompt}]}],
         "generationConfig": {
             "temperature": 0.7,
             "topP": 0.9,
             "maxOutputTokens": 1000,
-            "stopSequences": []
+            "stopSequences": [],
         },
         "safetySettings": [
             {
                 "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_NONE",
             },
             {
                 "category": "HARM_CATEGORY_HATE_SPEECH",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_NONE",
             },
             {
                 "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_NONE",
             },
             {
                 "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
-            }
-        ]
+                "threshold": "BLOCK_NONE",
+            },
+        ],
     }
-    
+
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(GEMINI_API_URL, headers=headers, json=data) as response:
+            async with session.post(
+                GEMINI_API_URL, headers=headers, json=data
+            ) as response:
                 if response.status == 200:
                     result = await response.json()
                     # Extract the response from Gemini format
-                    if 'candidates' in result and len(result['candidates']) > 0:
-                        candidate = result['candidates'][0]
-                        if 'content' in candidate and 'parts' in candidate['content']:
-                            return candidate['content']['parts'][0]['text']
+                    if "candidates" in result and len(result["candidates"]) > 0:
+                        candidate = result["candidates"][0]
+                        if "content" in candidate and "parts" in candidate["content"]:
+                            return candidate["content"]["parts"][0]["text"]
                     return "No response received from Gemini"
                 else:
                     error_text = await response.text()
@@ -247,15 +244,15 @@ async def ask(ctx, *, question: str):
     if not question:
         await ctx.send("Please provide a question to ask the AI!")
         return
-    
+
     # Send typing indicator
     async with ctx.typing():
         response = await call_gemini_ai(question)
-    
+
     # Discord has a 2000 character limit, so we need to handle long responses
     if len(response) > 2000:
         # Split response into chunks
-        chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
+        chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
         for chunk in chunks:
             await ctx.send(chunk)
     else:
@@ -271,15 +268,41 @@ async def chat(ctx, *, message: str):
     if not message:
         await ctx.send("Please provide a message to chat with the AI!")
         return
-    
+
+    context_limit = 100
+
     # Add system message for conversational context
-    system_msg = "You are a helpful and friendly AI assistant in a Discord chat. Respond naturally and conversationally."
-    
+    system_msg = (
+        "You are a helpful and friendly AI assistant in a Discord chat. "
+        "You will be given the recent message history from the channel. "
+        "Your task is to respond *only* to the very last message in the history, "
+        "using the previous messages as context to understand the flow of conversation. "
+        "Respond naturally and conversationally."
+    )
+
     async with ctx.typing():
-        response = await call_gemini_ai(message, system_message=system_msg)
-    
+        context_messages = []
+
+        async for ctx_msg in ctx.channel.history(limit=context_limit):
+            msg: str = f"{ctx_msg.author.display_name}: {ctx_msg.content}"
+            context_messages.append(msg)
+
+        context_messages.reverse()
+        chat_history = "\n".join(context_messages)
+
+        prompt = (
+            f"Here is the recent message history from the channel:\n\n"
+            f"--- CHAT HISTORY ---\n"
+            f"{chat_history}\n"
+            f"--- END HISTORY ---\n\n"
+            f"Please provide a natural, conversational response to the *last* message in this history."
+            f"message: {message}"
+        )
+
+        response = await call_gemini_ai(prompt, system_message=system_msg)
+
     if len(response) > 2000:
-        chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
+        chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
         for chunk in chunks:
             await ctx.send(chunk)
     else:
@@ -295,15 +318,15 @@ async def explain(ctx, *, topic: str):
     if not topic:
         await ctx.send("Please provide a topic to explain!")
         return
-    
+
     system_msg = "You are an expert educator. Explain topics clearly and concisely in a way that's easy to understand."
     prompt = f"Please explain {topic}:"
-    
+
     async with ctx.typing():
         response = await call_gemini_ai(prompt, system_message=system_msg)
-    
+
     if len(response) > 2000:
-        chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
+        chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
         for chunk in chunks:
             await ctx.send(chunk)
     else:
@@ -319,14 +342,14 @@ async def code_help(ctx, *, coding_question: str):
     if not coding_question:
         await ctx.send("Please provide a coding question!")
         return
-    
+
     system_msg = "You are an expert programming assistant. Provide clear explanations and code examples when appropriate. Format code using markdown code blocks."
-    
+
     async with ctx.typing():
         response = await call_gemini_ai(coding_question, system_message=system_msg)
-    
+
     if len(response) > 2000:
-        chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
+        chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
         for chunk in chunks:
             await ctx.send(chunk)
     else:
@@ -339,8 +362,10 @@ async def ai_status(ctx):
     Check if the DeepSeek API is working
     """
     async with ctx.typing():
-        test_response = await call_gemini_ai("Hello, this is a test message. Please respond with 'DeepSeek AI is working correctly!'")
-    
+        test_response = await call_gemini_ai(
+            "Hello, this is a test message. Please respond with 'DeepSeek AI is working correctly!'"
+        )
+
     if "Error" in test_response:
         await ctx.send(f"❌ GEMINI API Error: {test_response}")
     else:
@@ -356,15 +381,15 @@ async def think(ctx, *, problem: str):
     if not problem:
         await ctx.send("Please provide a problem to think about!")
         return
-    
+
     system_msg = "You are a logical thinking assistant. Break down problems step-by-step and show your reasoning process clearly."
     prompt = f"Please think through this step-by-step: {problem}"
-    
+
     async with ctx.typing():
         response = await call_gemini_ai(prompt, system_message=system_msg)
-    
+
     if len(response) > 2000:
-        chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
+        chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
         for chunk in chunks:
             await ctx.send(chunk)
     else:
@@ -382,7 +407,7 @@ async def summarize(ctx, scope: str = "channel", message_limit: int = 200):
     if scope not in ["channel", "guild"]:
         await ctx.send("Invalid scope. Use 'channel' or 'guild'.")
         return
-   
+
     message_limit = int(message_limit)
 
     if message_limit < 5 or message_limit > 200:
@@ -392,7 +417,7 @@ async def summarize(ctx, scope: str = "channel", message_limit: int = 200):
     async with ctx.typing():
         # Collect messages based on scope
         messages = []
-        
+
         if scope == "channel":
             # Get messages from current channel
             async for message in ctx.channel.history(limit=message_limit):
@@ -402,52 +427,55 @@ async def summarize(ctx, scope: str = "channel", message_limit: int = 200):
             # Get messages from all text channels in guild
             for channel in ctx.guild.text_channels:
                 try:
-                    async for message in channel.history(limit=20):  # Fewer per channel for guild-wide
+                    async for message in channel.history(
+                        limit=20
+                    ):  # Fewer per channel for guild-wide
                         if not message.author.bot:
-                            messages.append(f"{channel.name} - {message.author.display_name}: {message.content}")
+                            messages.append(
+                                f"{channel.name} - {message.author.display_name}: {message.content}"
+                            )
                         if len(messages) >= message_limit:
                             break
                     if len(messages) >= message_limit:
                         break
                 except discord.Forbidden:
                     continue  # Skip channels we can't read
-        
+
         if not messages:
             await ctx.send("No messages found to summarize.")
             return
-        
+
         # Prepare prompt for AI
-        messages_text = "\n".join(messages[-message_limit:])  # Ensure we don't exceed limit
+        messages_text = "\n".join(
+            messages[-message_limit:]
+        )  # Ensure we don't exceed limit
         prompt = (
             f"Please analyze these recent Discord messages and provide a concise summary "
             f"of the main topics, discussions, and notable events. "
             f"Focus on key points and trends:\n\n{messages_text}"
         )
-        
+
         system_msg = (
             "You are a Discord community analyst. Provide clear, concise summaries of "
             "channel activity. Identify main topics, ongoing discussions, and notable "
             "events. Keep it brief but informative."
         )
-        
+
         # Get summary from AI
-        summary = await call_gemini_ai(
-            prompt, 
-            system_message=system_msg
-        )
-        
+        summary = await call_gemini_ai(prompt, system_message=system_msg)
+
         # Send the summary
         title = f"📊 Summary of recent {scope} activity:"
         response = f"{title}\n\n{summary}"
-        
+
         if len(response) > 2000:
-            chunks = [response[i:i+2000] for i in range(0, len(response), 2000)]
+            chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
             for chunk in chunks:
                 await ctx.send(chunk)
         else:
             await ctx.send(response)
 
-            
+
 @tasks.loop(time=GM_SCHEDULE_TIME)
 async def gm_scheduled_message():
     channel = bot.get_channel(GM_CHANNEL_ID)
@@ -474,7 +502,7 @@ async def on_ready():
                 f" - Channel: {channel.name} (ID: {channel.id}, Type: {channel.type})"
             )
 
-            if  channel.name == "dsa":
+            if channel.name == "dsa":
                 global LEETCODE_CHANNEL_ID
                 LEETCODE_CHANNEL_ID = channel.id
 
@@ -484,7 +512,7 @@ async def on_ready():
 
     if not gm_scheduled_message.is_running():
         gm_scheduled_message.start()
-    
+
     if not leetcode_scheduled_message.is_running():
         leetcode_scheduled_message.start()
 
