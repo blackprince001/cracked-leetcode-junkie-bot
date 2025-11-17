@@ -3,10 +3,11 @@ import json
 import os
 from datetime import time
 
-import aiohttp
 import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 
 load_dotenv()
 
@@ -16,8 +17,7 @@ TIMEZONE = "UTC"
 LEETCODE_SCHEDULE_TIME = time(hour=5, minute=00)
 GM_SCHEDULE_TIME = time(hour=0, minute=00)
 
-# DeepSeek API endpoint
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+AI_CLIENT = genai.Client(api_key=GEMINI_API_KEY)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -178,57 +178,20 @@ async def call_gemini_ai(prompt: str, system_message: str = None) -> str:
     """
     Call Gemini API with the given prompt
     """
-    headers = {"Content-Type": "application/json"}
-
     # Build the full prompt with system message if provided
-    full_prompt = prompt
-    if system_message:
-        full_prompt = f"{system_message}\n\nUser: {prompt}"
-
-    data = {
-        "contents": [{"parts": [{"text": full_prompt}]}],
-        "generationConfig": {
-            "temperature": 0.7,
-            "topP": 0.9,
-            "maxOutputTokens": 1000,
-            "stopSequences": [],
-        },
-        "safetySettings": [
-            {
-                "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_NONE",
-            },
-            {
-                "category": "HARM_CATEGORY_HATE_SPEECH",
-                "threshold": "BLOCK_NONE",
-            },
-            {
-                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_NONE",
-            },
-            {
-                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_NONE",
-            },
-        ],
-    }
+    if not prompt:
+        return "You need a prompt to be able to interact with the AI."
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                GEMINI_API_URL, headers=headers, json=data
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    # Extract the response from Gemini format
-                    if "candidates" in result and len(result["candidates"]) > 0:
-                        candidate = result["candidates"][0]
-                        if "content" in candidate and "parts" in candidate["content"]:
-                            return candidate["content"]["parts"][0]["text"]
-                    return "No response received from Gemini"
-                else:
-                    error_text = await response.text()
-                    return f"Error: API returned status {response.status}: {error_text}"
+        response = AI_CLIENT.models.generate_content(
+            model="gemini-2.5-pro",
+            config=types.GenerateContentConfig(system_instruction=system_message)
+            if system_message is not None
+            else None,
+            contents=prompt,
+        )
+
+        return response.text if response.text else "No response from Gemini"
     except asyncio.TimeoutError:
         return "Error: Request timed out"
     except Exception as e:
@@ -513,8 +476,8 @@ async def on_ready():
     if not gm_scheduled_message.is_running():
         gm_scheduled_message.start()
 
-    if not leetcode_scheduled_message.is_running():
-        leetcode_scheduled_message.start()
+    # if not leetcode_scheduled_message.is_running():
+    #     leetcode_scheduled_message.start()
 
 
 @bot.command()
