@@ -4,7 +4,7 @@ import os
 from datetime import time
 
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -17,7 +17,7 @@ TIMEZONE = "UTC"
 LEETCODE_SCHEDULE_TIME = time(hour=5, minute=00)
 GM_SCHEDULE_TIME = time(hour=0, minute=00)
 
-AI_CLIENT = genai.Client(api_key=GEMINI_API_KEY)
+AI_CLIENT = genai.Client(api_key=GEMINI_API_KEY).aio
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -57,61 +57,61 @@ def save_data(data):
         json.dump(data, f, indent=4)
 
 
-@tasks.loop(time=LEETCODE_SCHEDULE_TIME)
-async def leetcode_scheduled_message():
-    channel = bot.get_channel(LEETCODE_CHANNEL_ID)
-    if not channel:
-        print(f"Could not find channel with ID {LEETCODE_CHANNEL_ID}")
-        return
+# @tasks.loop(time=LEETCODE_SCHEDULE_TIME)
+# async def leetcode_scheduled_message():
+#     channel = bot.get_channel(LEETCODE_CHANNEL_ID)
+#     if not channel:
+#         print(f"Could not find channel with ID {LEETCODE_CHANNEL_ID}")
+#         return
 
-    data = load_data()
-    messages = data["messages"]
+#     data = load_data()
+#     messages = data["messages"]
 
-    if not messages:
-        print("No messages found in messages.json")
-        return
+#     if not messages:
+#         print("No messages found in messages.json")
+#         return
 
-    # Get and validate current index
-    current_index = data["last_used_index"]
-    if current_index >= len(messages):
-        current_index = 0
+#     # Get and validate current index
+#     current_index = data["last_used_index"]
+#     if current_index >= len(messages):
+#         current_index = 0
 
-    # Prepare to send up to 2 messages
-    if len(messages) == 1:
-        indices_to_send = [current_index]
-    else:
-        indices_to_send = [current_index, (current_index + 1) % len(messages)]
+#     # Prepare to send up to 2 messages
+#     if len(messages) == 1:
+#         indices_to_send = [current_index]
+#     else:
+#         indices_to_send = [current_index, (current_index + 1) % len(messages)]
 
-    sent_count = 0
-    for idx in indices_to_send:
-        try:
-            message_content = messages[idx]
-            msg = await channel.send(
-                "Have you practiced today? A practice a day keeps rust away! \n\nQuestion of the Day\n\n"
-                + message_content["content"]
-            )
-            # Create a thread for each posted question
-            thread_title = message_content.get("thread_title", f"Question {idx + 1}")
-            try:
-                await msg.create_thread(name=thread_title)
-            except discord.DiscordException as e:
-                print(f"Warning: failed to create thread for message {idx}: {e}")
+#     sent_count = 0
+#     for idx in indices_to_send:
+#         try:
+#             message_content = messages[idx]
+#             msg = await channel.send(
+#                 "Have you practiced today? A practice a day keeps rust away! \n\nQuestion of the Day\n\n"
+#                 + message_content["content"]
+#             )
+#             # Create a thread for each posted question
+#             thread_title = message_content.get("thread_title", f"Question {idx + 1}")
+#             try:
+#                 await msg.create_thread(name=thread_title)
+#             except discord.DiscordException as e:
+#                 print(f"Warning: failed to create thread for message {idx}: {e}")
 
-            sent_count += 1
-            print(f"Sent message index {idx + 1}/{len(messages)}")
+#             sent_count += 1
+#             print(f"Sent message index {idx + 1}/{len(messages)}")
 
-        except discord.DiscordException as e:
-            print(f"Error sending message index {idx}: {str(e)}")
-        except Exception as e:
-            print(f"Unexpected error sending message index {idx}: {str(e)}")
+#         except discord.DiscordException as e:
+#             print(f"Error sending message index {idx}: {str(e)}")
+#         except Exception as e:
+#             print(f"Unexpected error sending message index {idx}: {str(e)}")
 
-    if sent_count > 0:
-        # Advance the rotation by the number of messages actually sent
-        data["last_used_index"] = (current_index + sent_count) % len(messages)
-        save_data(data)
-        print(f"Updated rotation index to {data['last_used_index']}")
-    else:
-        print("No messages were sent this run.")
+#     if sent_count > 0:
+#         # Advance the rotation by the number of messages actually sent
+#         data["last_used_index"] = (current_index + sent_count) % len(messages)
+#         save_data(data)
+#         print(f"Updated rotation index to {data['last_used_index']}")
+#     else:
+#         print("No messages were sent this run.")
 
 
 @bot.command()
@@ -174,7 +174,7 @@ async def remove_message(ctx, index: int):
         await ctx.send(f"Invalid index! Use 1-{len(messages)}")
 
 
-async def call_gemini_ai(prompt: str, system_message: str = None) -> str:
+async def call_gemini_ai(prompt: str, system_message: str = "") -> str:
     """
     Call Gemini API with the given prompt
     """
@@ -183,7 +183,7 @@ async def call_gemini_ai(prompt: str, system_message: str = None) -> str:
         return "You need a prompt to be able to interact with the AI."
 
     try:
-        response = AI_CLIENT.models.generate_content(
+        response = await AI_CLIENT.models.generate_content(
             model="gemini-2.5-pro",
             config=types.GenerateContentConfig(system_instruction=system_message)
             if system_message is not None
@@ -439,19 +439,19 @@ async def summarize(ctx, scope: str = "channel", message_limit: int = 200):
             await ctx.send(response)
 
 
-@tasks.loop(time=GM_SCHEDULE_TIME)
-async def gm_scheduled_message():
-    channel = bot.get_channel(GM_CHANNEL_ID)
-    if not channel:
-        print(f"Could not find channel with ID {GM_CHANNEL_ID}")
-        return
+# @tasks.loop(time=GM_SCHEDULE_TIME)
+# async def gm_scheduled_message():
+#     channel = bot.get_channel(GM_CHANNEL_ID)
+#     if not channel:
+#         print(f"Could not find channel with ID {GM_CHANNEL_ID}")
+#         return
 
-    try:
-        await channel.send("gm")
-        print("Sent message Good Morning Message")
+#     try:
+#         await channel.send("gm")
+#         print("Sent message Good Morning Message")
 
-    except discord.DiscordException as e:
-        print(f"Error sending message: {str(e)}")
+#     except discord.DiscordException as e:
+#         print(f"Error sending message: {str(e)}")
 
 
 @bot.event
@@ -465,16 +465,16 @@ async def on_ready():
                 f" - Channel: {channel.name} (ID: {channel.id}, Type: {channel.type})"
             )
 
-            if channel.name == "dsa":
-                global LEETCODE_CHANNEL_ID
-                LEETCODE_CHANNEL_ID = channel.id
+            # if channel.name == "dsa":
+            #     global LEETCODE_CHANNEL_ID
+            #     LEETCODE_CHANNEL_ID = channel.id
 
-            if channel.name == "gm":
-                global GM_CHANNEL_ID
-                GM_CHANNEL_ID = channel.id
+            # if channel.name == "gm":
+            #     global GM_CHANNEL_ID
+            #     GM_CHANNEL_ID = channel.id
 
-    if not gm_scheduled_message.is_running():
-        gm_scheduled_message.start()
+    # if not gm_scheduled_message.is_running():
+    #     gm_scheduled_message.start()
 
     # if not leetcode_scheduled_message.is_running():
     #     leetcode_scheduled_message.start()
