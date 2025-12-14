@@ -1,0 +1,19 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cracked-leetcode-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./messages.json:/app/messages.json
+      - ./data:/app/data
+    networks:
+      - bot-network
+
+networks:
+  bot-network:
+    driver: bridge
+

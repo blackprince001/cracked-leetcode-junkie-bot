@@ -14,3 +14,7 @@ primary_region = 'iad'
 
 [[vm]]
   size = 'shared-cpu-1x'
+
+[mounts]
+  source = "bot_data"
+  destination = "/app/data"

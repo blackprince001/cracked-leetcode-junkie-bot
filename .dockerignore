@@ -1,7 +1,22 @@
 # flyctl launch added from .gitignore
 **/.env
+.env.example
 
 **/.venv
+.venv
 
 **/__pycache__
+__pycache__
+
 fly.toml
+docker-compose.yml
+Makefile
+
+*.md
+.git
+.gitignore
+
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
