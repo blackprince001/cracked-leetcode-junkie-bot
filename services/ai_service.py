@@ -27,7 +27,7 @@ class AIService:
         config = types.GenerateContentConfig(system_instruction=system_message)
 
       response = await self.client.models.generate_content(
-        model="gemini-3-flash",
+        model="gemini-2.5-flash-lite",
         config=config,
         contents=full_prompt,
       )
