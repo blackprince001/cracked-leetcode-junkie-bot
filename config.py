@@ -21,3 +21,10 @@ DEFAULT_SEARCH_LIMIT = 10
 DEFAULT_CONTEXT_LIMIT = 5
 
 EMBEDDING_MODEL = "gemini-embedding-001"
+
+# LeetCode Configuration
+LEETCODE_API_URL = "https://leetcode.com/graphql"
+LEETCODE_CHANNEL_NAME = "dsa"
+# 5:00 AM UTC daily
+LEETCODE_DAILY_TIME_HOUR = 5
+LEETCODE_DAILY_TIME_MINUTE = 0

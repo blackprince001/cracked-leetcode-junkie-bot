@@ -36,6 +36,10 @@ async def on_ready():
     logger.info(f"Connected to guild: {guild.name} (ID: {guild.id})")
     # Start indexing in background task for each guild
     asyncio.create_task(auto_index_service.auto_index_guild(guild))
+    
+  # Initialize scheduled tasks
+  from services.scheduled_tasks import setup_scheduled_tasks
+  setup_scheduled_tasks(bot)
 
 
 @bot.event

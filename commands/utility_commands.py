@@ -88,3 +88,25 @@ def setup_utility_commands(bot: commands.Bot):
       f"📝 This server: {total_count} messages indexed\n"
       f"🌐 All servers: {total_all} messages indexed"
     )
+
+  @bot.command()
+  async def force_leetcode(ctx):
+    """Manually triggers the LeetCode daily post (Admin only)."""
+    # Simple check for admin permissions or specific user
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("❌ You need administrator permissions to use this command.")
+        return
+
+    await ctx.send("⏳ Fetching LeetCode daily question...")
+    
+    # Import here to avoid circular dependencies if any
+    from services.scheduled_tasks import get_leetcode_service
+    leetcode_service = get_leetcode_service()
+    
+    question = await leetcode_service.fetch_daily_question()
+    if not question:
+        await ctx.send("❌ Failed to fetch daily question. Check logs.")
+        return
+        
+    embed = leetcode_service.create_daily_embed(question)
+    await ctx.send(embed=embed)
