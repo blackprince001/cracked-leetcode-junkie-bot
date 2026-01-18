@@ -62,10 +62,16 @@ class ScheduledTasks:
 
                 if target_channel:
                     try:
-                        await target_channel.send(embed=embed)
+                        message = await target_channel.send(embed=embed)
+                        
+                        # Create a thread for discussion
+                        question_title = question.get("question", {}).get("title", "Daily Question")
+                        thread_name = f"🧵 {question_title}"
+                        await message.create_thread(name=thread_name, auto_archive_duration=1440)
+                        
                         logger.info(f"✅ Posted LeetCode daily to {guild.name} #{target_channel.name}")
                     except discord.Forbidden:
-                        logger.warning(f"❌ Missing permissions to post to {guild.name} #{target_channel.name}")
+                        logger.warning(f"❌ Missing permissions to post/thread to {guild.name} #{target_channel.name}")
                     except Exception as e:
                         logger.error(f"❌ Error posting to {guild.name}: {e}")
                 else:

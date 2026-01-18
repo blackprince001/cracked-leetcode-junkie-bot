@@ -109,4 +109,8 @@ def setup_utility_commands(bot: commands.Bot):
         return
         
     embed = leetcode_service.create_daily_embed(question)
-    await ctx.send(embed=embed)
+    message = await ctx.send(embed=embed)
+    
+    # Create thread
+    question_title = question.get("question", {}).get("title", "Daily Question")
+    await message.create_thread(name=f"🧵 {question_title}", auto_archive_duration=1440)
