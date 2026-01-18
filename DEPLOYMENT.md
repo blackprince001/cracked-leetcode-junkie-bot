@@ -1,67 +1,134 @@
 # Deployment Guide
 
-## Fly.io Deployment
+## Quick Start (Docker)
 
-### Initial Setup
+```bash
+# 1. Copy environment file and configure
+cp .env.example .env
+# Edit .env with your DISCORD_BOT_TOKEN and GEMINI_API_KEY
 
-1. **Create the persistent volume:**
-   ```bash
-   fly volumes create bot_data --size 1 --region iad
-   ```
+# 2. Build and run
+make up-d
 
-2. **Deploy the application:**
-   ```bash
-   fly deploy
-   ```
+# 3. View logs
+make logs
+```
+
+## Docker Deployment
+
+### Prerequisites
+- Docker and Docker Compose installed
+- `.env` file with required environment variables
+
+### Deploy
+
+```bash
+# Build and start in background
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
 
 ### Data Persistence
 
-The bot uses a persistent volume mounted at `/app/data` to store:
-- `messages.db` - SQLite database with indexed messages and embeddings
-- Database journal files (WAL, etc.)
+Data is persisted via Docker volumes:
+- `./data/` → `/app/data` (SQLite database with messages and embeddings)
+- `./messages.json` → `/app/messages.json` (Leetcode rotation config)
 
-The volume is configured in `fly.toml`:
-```toml
-[mounts]
-  source = "bot_data"
-  destination = "/app/data"
+---
+
+## Manual Deployment (Any VM)
+
+### Prerequisites
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) package manager
+
+### Steps
+
+```bash
+# 1. Clone and enter directory
+git clone <repo-url>
+cd cracked-leetcode-junkie-bot
+
+# 2. Install dependencies
+uv sync
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env with your tokens
+
+# 4. Run the bot
+uv run python main.py
 ```
 
-### Backfilling Historical Messages
+### Systemd Service (Recommended)
 
-After deployment, you can backfill historical messages using the `/backfill_messages` command:
+Create `/etc/systemd/system/discord-bot.service`:
 
+```ini
+[Unit]
+Description=Discord Bot
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/cracked-leetcode-junkie-bot
+ExecStart=/path/to/.local/bin/uv run python main.py
+Restart=always
+RestartSec=10
+Environment=PATH=/usr/bin:/path/to/.local/bin
+
+[Install]
+WantedBy=multi-user.target
 ```
-/backfill_messages 1000
+
+Then:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable discord-bot
+sudo systemctl start discord-bot
+
+# View logs
+journalctl -u discord-bot -f
 ```
 
-This will index up to 1000 messages per channel. Adjust the limit based on your needs (1-10000).
+---
 
-**Note:** Backfilling can take a while and will consume API credits for embedding generation. Start with a smaller limit to test.
+## Environment Variables
 
-### Monitoring
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DISCORD_BOT_TOKEN` | Yes | Discord bot token |
+| `GEMINI_API_KEY` | Yes | Google Gemini API key |
 
-- View logs: `fly logs`
-- Check volume usage: `fly volumes list`
-- SSH into the instance: `fly ssh console`
+---
 
-### Troubleshooting
+## Monitoring
 
-**Volume not mounting:**
-- Ensure the volume exists: `fly volumes list`
-- Check volume is in the same region as your app
-- Verify `fly.toml` has the correct mount configuration
+```bash
+# Docker logs
+docker-compose logs -f
+
+# Systemd logs
+journalctl -u discord-bot -f
+```
+
+---
+
+## Troubleshooting
+
+**Bot not starting:**
+- Check `.env` file has valid tokens
+- Verify Python 3.12+ installed
 
 **Database errors:**
-- Check volume has space: `fly volumes list`
-- Verify permissions on the data directory
-- Check logs for specific errors: `fly logs`
+- Ensure `data/` directory exists and is writable
+- Check disk space
 
-## VPS Deployment
-
-For VPS deployments, ensure:
-1. The `data/` directory exists and is writable
-2. Database files persist across restarts (not in `/tmp`)
-3. Consider using systemd or similar for process management
-4. Set up log rotation for the application logs
-
+**Permission denied:**
+- Run `chmod -R 755 data/` on the data directory

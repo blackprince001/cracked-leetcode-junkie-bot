@@ -82,29 +82,31 @@ async def get_existing_hashes(content_hashes: List[str]) -> set:
       return {row[0] for row in rows}
 
 
-async def get_all_embeddings(
+async def get_all_embeddings_with_content(
   guild_id: Optional[str] = None,
-) -> List[Tuple[int, bytes, str]]:
+) -> List[Tuple[int, bytes, str, str]]:
+  """Returns list of (id, embedding, message_url, content)."""
   async with aiosqlite.connect(DB_PATH) as db:
     if guild_id:
       async with db.execute(
-        "SELECT id, embedding, message_url FROM messages WHERE guild_id = ? AND embedding IS NOT NULL",
+        "SELECT id, embedding, message_url, content FROM messages WHERE guild_id = ? AND embedding IS NOT NULL",
         (guild_id,),
       ) as cursor:
         rows = await cursor.fetchall()
     else:
       async with db.execute(
-        "SELECT id, embedding, message_url FROM messages WHERE embedding IS NOT NULL"
+        "SELECT id, embedding, message_url, content FROM messages WHERE embedding IS NOT NULL"
       ) as cursor:
         rows = await cursor.fetchall()
 
-    return [(row[0], row[1], row[2]) for row in rows]
+    return [(row[0], row[1], row[2], row[3]) for row in rows]
 
 
 async def search_similar_messages(
   query_embedding: np.ndarray, guild_id: Optional[str] = None, limit: int = 10
-) -> List[Tuple[str, float]]:
-  embeddings_data = await get_all_embeddings(guild_id)
+) -> List[Tuple[str, str, float]]:
+  """Returns list of (message_url, content, similarity_score)."""
+  embeddings_data = await get_all_embeddings_with_content(guild_id)
 
   if not embeddings_data:
     return []
@@ -115,7 +117,7 @@ async def search_similar_messages(
   if query_norm == 0:
     return []
 
-  for _, embedding_blob, message_url in embeddings_data:
+  for _, embedding_blob, message_url, content in embeddings_data:
     stored_embedding = np.frombuffer(embedding_blob, dtype=np.float32)
 
     dot_product = np.dot(query_embedding, stored_embedding)
@@ -125,9 +127,9 @@ async def search_similar_messages(
       continue
 
     similarity = dot_product / (query_norm * stored_norm)
-    similarities.append((message_url, float(similarity)))
+    similarities.append((message_url, content, float(similarity)))
 
-  similarities.sort(key=lambda x: x[1], reverse=True)
+  similarities.sort(key=lambda x: x[2], reverse=True)
   return similarities[:limit]
 
 

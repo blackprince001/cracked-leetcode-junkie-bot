@@ -14,4 +14,4 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_content_hash ON messages(content_hash);
 CREATE INDEX IF NOT EXISTS idx_guild_id ON messages(guild_id);
 CREATE INDEX IF NOT EXISTS idx_created_at ON messages(created_at);
-
+CREATE INDEX IF NOT EXISTS idx_message_id ON messages(message_id);

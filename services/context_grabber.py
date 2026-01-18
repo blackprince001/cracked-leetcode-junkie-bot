@@ -11,21 +11,24 @@ class ContextGrabber:
   async def get_relevant_context(
     self, query: str, guild_id: Optional[str] = None, limit: int = DEFAULT_CONTEXT_LIMIT
   ) -> str:
+    """Fetch relevant message content to use as context for AI responses."""
     if not query or not query.strip():
       return ""
 
-    message_urls = await self.search_service.search_messages_urls_only(
+    results = await self.search_service.search_messages(
       query=query,
       guild_id=guild_id,
       limit=limit,
     )
 
-    if not message_urls:
+    if not results:
       return ""
 
-    context_lines = ["Relevant server context:"]
-    for i, url in enumerate(message_urls, 1):
-      context_lines.append(f"{i}. {url}")
+    context_lines = ["Here are relevant messages from this server that may help:"]
+    for i, (_url, content, _score) in enumerate(results, 1):
+      # Truncate long messages to keep context manageable
+      truncated_content = content[:300] + "..." if len(content) > 300 else content
+      context_lines.append(f"{i}. {truncated_content}")
 
     return "\n".join(context_lines)
 

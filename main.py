@@ -1,10 +1,18 @@
+import asyncio
+
 import discord
 from discord.ext import commands
 
 from commands import ai_commands, message_commands, utility_commands
 from config import GEMINI_API_KEY, TOKEN
 from db import message_db
+from services.auto_index_service import get_auto_index_service
 from services.message_indexer import get_message_indexer
+from utils.logging import get_logger, setup_logging
+
+# Initialize logging
+setup_logging()
+logger = get_logger("main")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -13,27 +21,129 @@ bot = commands.Bot(command_prefix="/", intents=intents, help_command=None)
 
 @bot.event
 async def on_ready():
-  print(f"{bot.user} has connected to Discord!")
+  logger.info(f"Bot connected as {bot.user}")
 
   await message_db.init_db()
-  print("Database initialized.")
+  logger.info("Database initialized")
 
   indexer = get_message_indexer()
   indexer.start()
-  print("Message indexer started.")
+  logger.info("Message indexer started")
 
+  # Auto-index existing guilds on startup if they have no indexed messages
+  auto_index_service = get_auto_index_service()
   for guild in bot.guilds:
-    print(f"Guild: {guild.name} (ID: {guild.id})")
-    for channel in guild.channels:
-      print(f" - Channel: {channel.name} (ID: {channel.id}, Type: {channel.type})")
+    logger.info(f"Connected to guild: {guild.name} (ID: {guild.id})")
+    # Start indexing in background task for each guild
+    asyncio.create_task(auto_index_service.auto_index_guild(guild))
+
+
+@bot.event
+async def on_guild_join(guild: discord.Guild):
+  """Auto-index messages when bot joins a new server."""
+  logger.info(f"🎉 Joined new guild: {guild.name} (ID: {guild.id})")
+
+  # Run auto-indexing in background task
+  auto_index_service = get_auto_index_service()
+  asyncio.create_task(auto_index_service.auto_index_guild(guild))
 
 
 @bot.event
 async def on_message(message: discord.Message):
-  await bot.process_commands(message)
-
+  # Ignore bot messages
   if message.author.bot:
     return
+
+  # Check if this is a reply to the bot's message
+  is_reply_to_bot = False
+  reply_chain = []
+  
+  if message.reference and message.reference.message_id:
+    try:
+      # Recursively fetch up to 5 previous messages in the chain to build context
+      curr_msg = message
+      for _ in range(5):
+        if not curr_msg.reference or not curr_msg.reference.message_id:
+          break
+        
+        prev_msg = await message.channel.fetch_message(curr_msg.reference.message_id)
+        reply_chain.append(prev_msg)
+        curr_msg = prev_msg
+        
+        # Check if the original message was replying to the bot
+        if curr_msg.author == bot.user and curr_msg.id == message.reference.message_id:
+            is_reply_to_bot = True
+
+      reply_chain.reverse() # Oldest to newest
+    except discord.NotFound:
+      pass
+
+  # Check if bot was mentioned OR if it's a reply to the bot
+  should_respond = (
+    (bot.user and bot.user.mentioned_in(message) and not message.mention_everyone)
+    or is_reply_to_bot
+  )
+
+  if should_respond:
+    content = message.content
+    if bot.user:
+      content = content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
+
+    if content:
+      logger.info(f"💬 {'Reply' if is_reply_to_bot else 'Mention'} from {message.author.display_name}: {content[:50]}...")
+
+      ctx = await bot.get_context(message)
+      if ctx.guild:
+        from services.ai_service import get_ai_service
+        from services.context_grabber import get_context_grabber
+
+        ai_service = get_ai_service()
+        context_grabber = get_context_grabber()
+
+        async with message.channel.typing():
+          guild_id = str(ctx.guild.id)
+          
+          # Only fetch server context (RAG) if this is NOT a reply chain, 
+          # OR if the user specifically asks for it/search is implied.
+          # For direct replies, we prioritize the conversation flow.
+          server_context = ""
+          if not is_reply_to_bot:
+             server_context = await context_grabber.get_relevant_context(content, guild_id=guild_id)
+
+          system_msg = (
+            "You are a chill, helpful bot in a Discord server. "
+            "Keep responses SHORT and conversational - like texting a friend. "
+            "Don't lecture, don't give unsolicited advice, don't be preachy. "
+            "Just answer what's asked. Use casual language."
+          )
+
+          prompt = content
+
+          # Build thread history string
+          if reply_chain:
+            thread_history = "\n".join([f"{m.author.display_name}: {m.content}" for m in reply_chain])
+            prompt = f"--- CONVERSATION HISTORY ---\n{thread_history}\n--- END HISTORY ---\n\nUser's new message: {content}"
+
+          if server_context:
+            prompt = f"{server_context}\n\n{prompt}"
+
+          response = await ai_service.call_gemini_ai(prompt, system_message=system_msg, use_search=True)
+
+        # Send response as a reply to maintain the thread
+        if len(response) > 2000:
+          chunks = [response[i : i + 2000] for i in range(0, len(response), 2000)]
+          for i, chunk in enumerate(chunks):
+            if i == 0:
+              await message.reply(chunk)
+            else:
+              await message.channel.send(chunk)
+        else:
+          await message.reply(response)
+
+        logger.info(f"💬 Replied to {message.author.display_name}")
+    return
+
+  await bot.process_commands(message)
 
   if not message.content or not message.content.strip():
     return
@@ -48,13 +158,10 @@ async def on_message(message: discord.Message):
   await indexer.queue_message(message)
 
 
-setup_ai_commands = ai_commands.setup_ai_commands
-setup_message_commands = message_commands.setup_message_commands
-setup_utility_commands = utility_commands.setup_utility_commands
-
-setup_ai_commands(bot)
-setup_message_commands(bot)
-setup_utility_commands(bot)
+# Setup commands directly without unnecessary re-assignment
+ai_commands.setup_ai_commands(bot)
+message_commands.setup_message_commands(bot)
+utility_commands.setup_utility_commands(bot)
 
 
 if __name__ == "__main__":
@@ -63,9 +170,10 @@ if __name__ == "__main__":
   if not GEMINI_API_KEY:
     raise ValueError("Missing GEMINI_API_KEY in environment variables")
 
+  logger.info("Starting bot...")
   try:
-    bot.run(TOKEN)
+    bot.run(TOKEN, log_handler=None)  # Disable default discord.py logging
   except KeyboardInterrupt:
-    print("Bot shutting down...")
+    logger.info("Bot shutting down...")
     indexer = get_message_indexer()
     indexer.stop()

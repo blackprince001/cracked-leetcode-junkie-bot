@@ -7,6 +7,9 @@ import discord
 from config import INDEXING_BATCH_SIZE, INDEXING_QUEUE_MAX_SIZE
 from db import message_db
 from services.embedding_service import get_embedding_service
+from utils.logging import get_logger
+
+logger = get_logger("indexer")
 
 
 class MessageIndexer:
@@ -31,7 +34,7 @@ class MessageIndexer:
       self.queue.put_nowait(message)
       return True
     except asyncio.QueueFull:
-      print(f"Warning: Indexing queue is full, dropping message {message.id}")
+      logger.warning(f"Queue full, dropping message {message.id}")
       return False
 
   def _calculate_hash(self, content: str) -> str:
@@ -63,7 +66,7 @@ class MessageIndexer:
           await self._process_batch(batch)
         break
       except Exception as e:
-        print(f"Error in indexer worker: {e}")
+        logger.error(f"Worker error: {e}")
 
     if batch:
       await self._process_batch(batch)
@@ -95,21 +98,19 @@ class MessageIndexer:
     to_index = []
     for data in message_data:
       if data["content_hash"] in existing_hashes:
-        print(
-          f"⏭️  Skipping duplicate message {data['message'].id} from {data['message'].author.display_name}"
-        )
+        logger.debug(f"Skipping duplicate: {data['message'].id}")
       else:
         to_index.append(data)
 
     if not to_index:
       return
 
-    print(f"📝 Batch indexing {len(to_index)} messages")
+    logger.info(f"📝 Indexing batch of {len(to_index)} messages")
 
     texts = [data["message"].content for data in to_index]
     embeddings = await self.embedding_service.generate_embeddings_batch(texts)
 
-    for data, embedding in zip(to_index, embeddings):
+    for data, embedding in zip(to_index, embeddings, strict=True):
       try:
         msg = data["message"]
         embedding_bytes = None
@@ -128,14 +129,12 @@ class MessageIndexer:
         )
 
         if inserted:
-          print(
-            f"✅ Indexed message {msg.id} from {msg.author.display_name} in #{msg.channel.name}"
-          )
+          logger.info(f"✅ Indexed: [{msg.author.display_name}] {msg.content[:50]}...")
         else:
-          print(f"⚠️  Failed to insert message {msg.id} (duplicate or error)")
+          logger.warning(f"Failed to insert message {msg.id}")
 
       except Exception as e:
-        print(f"❌ Error processing message {data['message'].id}: {e}")
+        logger.error(f"Error processing message {data['message'].id}: {e}")
 
 
 _message_indexer: Optional[MessageIndexer] = None

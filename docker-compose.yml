@@ -10,10 +10,8 @@ services:
     volumes:
       - ./messages.json:/app/messages.json
       - ./data:/app/data
-    networks:
-      - bot-network
-
-networks:
-  bot-network:
-    driver: bridge
-
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

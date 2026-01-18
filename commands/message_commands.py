@@ -1,14 +1,20 @@
 import json
+from typing import Any
 
+import aiofiles
 from discord.ext import commands
 
+DATA_FILE = "messages.json"
 
-def load_data():
+
+async def load_data() -> dict[str, Any]:
+  """Async load message rotation data from JSON file."""
   default_data = {"messages": [], "last_used_index": 0}
 
   try:
-    with open("messages.json", "r") as f:
-      data = json.load(f)
+    async with aiofiles.open(DATA_FILE, "r") as f:
+      content = await f.read()
+      data = json.loads(content)
 
       if not isinstance(data, dict):
         print("Invalid data format in messages.json, resetting to default.")
@@ -22,18 +28,19 @@ def load_data():
 
   except FileNotFoundError:
     print("messages.json not found, creating with default data.")
-    save_data(default_data)
+    await save_data(default_data)
     return default_data
 
   except json.JSONDecodeError:
     print("Error decoding messages.json, resetting to default.")
-    save_data(default_data)
+    await save_data(default_data)
     return default_data
 
 
-def save_data(data):
-  with open("messages.json", "w") as f:
-    json.dump(data, f, indent=4)
+async def save_data(data: dict[str, Any]) -> None:
+  """Async save message rotation data to JSON file."""
+  async with aiofiles.open(DATA_FILE, "w") as f:
+    await f.write(json.dumps(data, indent=4))
 
 
 def setup_message_commands(bot: commands.Bot):
@@ -53,15 +60,15 @@ def setup_message_commands(bot: commands.Bot):
 
     new_message = {"content": content_part, "thread_title": thread_part}
 
-    data = load_data()
+    data = await load_data()
     data["messages"].append(new_message)
-    save_data(data)
+    await save_data(data)
 
     await ctx.send(f"Message added! Total messages: {len(data['messages'])}")
 
   @bot.command()
   async def list_messages(ctx):
-    data = load_data()
+    data = await load_data()
     messages = data["messages"]
 
     if not messages:
@@ -80,21 +87,21 @@ def setup_message_commands(bot: commands.Bot):
 
   @bot.command()
   async def remove_message(ctx, index: int):
-    data = load_data()
+    data = await load_data()
     messages = data["messages"]
 
     if 1 <= index <= len(messages):
       removed = messages.pop(index - 1)
       if data["last_used_index"] >= len(messages):
         data["last_used_index"] = 0
-      save_data(data)
+      await save_data(data)
       await ctx.send(f'Removed: "{removed["content"][:50]}..."')
     else:
       await ctx.send(f"Invalid index! Use 1-{len(messages)}")
 
   @bot.command()
   async def rotation_status(ctx):
-    data = load_data()
+    data = await load_data()
     await ctx.send(
       f"**Current Rotation Status:**\n"
       f"Next message: {data['last_used_index'] + 1}/{len(data['messages'])}\n"
