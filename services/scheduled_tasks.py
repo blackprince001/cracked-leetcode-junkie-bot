@@ -156,21 +156,48 @@ class ScheduledTasks:
     async def before_weekly_ranking_task(self):
         await self.bot.wait_until_ready()
 
+    async def _index_wordle_messages(self, guild: discord.Guild) -> None:
+        """Scan the wordle channel for Wordle bot summary messages and index who played."""
+        wordle_channel = discord.utils.get(guild.text_channels, name=WORDLE_CHANNEL_NAME)
+        if not wordle_channel:
+            return
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cutoff = now - datetime.timedelta(days=7)
+
+        try:
+            async for message in wordle_channel.history(after=cutoff, limit=None):
+                if not message.author.bot:
+                    continue
+                if not message.mentions:
+                    continue
+
+                for user in message.mentions:
+                    if user.bot:
+                        continue
+                    msg_id = f"wordle_{message.id}_{user.id}"
+                    content_hash = hashlib.sha256(msg_id.encode()).hexdigest()
+                    await message_db.insert_message(
+                        message_id=msg_id,
+                        channel_id=str(wordle_channel.id),
+                        guild_id=str(guild.id),
+                        author_id=str(user.id),
+                        content="[wordle]",
+                        content_hash=content_hash,
+                        message_url=message.jump_url,
+                    )
+        except discord.Forbidden:
+            logger.warning(f"Missing permissions to read history in #{wordle_channel.name}")
+        except Exception as e:
+            logger.error(f"Error indexing wordle channel: {e}")
+
     async def hydrate_missing_weekly_activity(self):
         """Reconcile this week's activity from Discord history into the DB."""
         logger.info(f"🔄 Starting weekly activity hydrate across {len(self.bot.guilds)} guild(s)")
         for guild in self.bot.guilds:
             logger.info(f"🔄 Hydrating {guild.name}…")
             try:
-                # Index Wordle games from the wordle channel so they count as messages
                 await self._index_wordle_messages(guild)
-
-                # Determine the target channel
-                channel = None
-                if target_channel_id:
-                    channel = guild.get_channel(target_channel_id)
-                else:
-                    channel = discord.utils.get(guild.text_channels, name=ACTIVITY_CHANNEL_NAME)
                 await asyncio.wait_for(guild.chunk(cache=True), timeout=15)
             except asyncio.TimeoutError:
                 logger.warning(f"guild.chunk timed out for {guild.name}; proceeding with cached members")
