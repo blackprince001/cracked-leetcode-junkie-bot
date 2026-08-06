@@ -8,6 +8,11 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-3-flash-preview"
 
+# When DEEPSEEK_API_KEY is set, it takes priority over Gemini for AI responses.
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_MODEL = "deepseek-chat"
+DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
+
 DB_PATH = "data/messages.db"
 
 # LeetCode Configuration
