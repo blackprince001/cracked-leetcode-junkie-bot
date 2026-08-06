@@ -439,31 +439,32 @@ class ScheduledTasks:
                 reverse=True,
             )
 
-            top5 = ranked[:5]
-            bottom5 = list(reversed(ranked[-5:])) if len(ranked) >= 5 else list(reversed(ranked))
-
-            # Build embed
-            embed = discord.Embed(
-                title=f"📊 Weekly Activity Report — {week_start}–{week_end}",
-                color=discord.Color.blurple(),
-            )
-
-            top_lines = []
-            medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-            for i, member in enumerate(top5):
-                msgs = count_map.get(str(member.id), 0)
-                label = "msg" if msgs == 1 else "msgs"
-                top_lines.append(f"{medals[i]} {member.mention} — **{msgs} {label}**")
-            embed.add_field(name="🏆 Most Active", value="\n".join(top_lines) or "No data", inline=False)
-
-            bottom_lines = []
-            for member in bottom5:
-                msgs = count_map.get(str(member.id), 0)
-                label = "msg" if msgs == 1 else "msgs"
-                bottom_lines.append(f"• {member.mention} — **{msgs} {label}**")
-            embed.add_field(name="💤 Least Active", value="\n".join(bottom_lines) or "No data", inline=False)
-
-            await channel.send(embed=embed)
+            # --- Leaderboard messaging disabled ---
+            # top5 = ranked[:5]
+            # bottom5 = list(reversed(ranked[-5:])) if len(ranked) >= 5 else list(reversed(ranked))
+            #
+            # # Build embed
+            # embed = discord.Embed(
+            #     title=f"📊 Weekly Activity Report — {week_start}–{week_end}",
+            #     color=discord.Color.blurple(),
+            # )
+            #
+            # top_lines = []
+            # medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+            # for i, member in enumerate(top5):
+            #     msgs = count_map.get(str(member.id), 0)
+            #     label = "msg" if msgs == 1 else "msgs"
+            #     top_lines.append(f"{medals[i]} {member.mention} — **{msgs} {label}**")
+            # embed.add_field(name="🏆 Most Active", value="\n".join(top_lines) or "No data", inline=False)
+            #
+            # bottom_lines = []
+            # for member in bottom5:
+            #     msgs = count_map.get(str(member.id), 0)
+            #     label = "msg" if msgs == 1 else "msgs"
+            #     bottom_lines.append(f"• {member.mention} — **{msgs} {label}**")
+            # embed.add_field(name="💤 Least Active", value="\n".join(bottom_lines) or "No data", inline=False)
+            #
+            # await channel.send(embed=embed)
 
             # Check server-wide baseline before running the purge
             server_total = sum(count_map.values())
