@@ -58,7 +58,7 @@ def setup_utility_commands(bot: commands.Bot):
 - Mention or reply to the bot to chat with AI
 - Daily LeetCode question posted automatically
 - Shuffled LeetCode problem posted automatically at 10:00 AM UTC
-- Shuffled Codeforces problem posted automatically at 3:00 PM UTC
+- Shuffled Codeforces problem auto-post is currently disabled (use `/force_dsa_codeforces`)
 """
     await ctx.send(help_text)
 

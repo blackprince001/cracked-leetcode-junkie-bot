@@ -49,7 +49,7 @@ class ScheduledTasks:
         # Start loops
         self.daily_task.start()
         self.daily_dsa_leetcode_task.start()
-        self.daily_dsa_codeforces_task.start()
+        # self.daily_dsa_codeforces_task.start()  # disabled for now
         self.weekly_ranking_task.start()
         self.book_club_reminder_task.start()
         self.book_club_final_reminder_task.start()
@@ -59,7 +59,7 @@ class ScheduledTasks:
     def cog_unload(self):
         self.daily_task.cancel()
         self.daily_dsa_leetcode_task.cancel()
-        self.daily_dsa_codeforces_task.cancel()
+        # self.daily_dsa_codeforces_task.cancel()  # disabled for now
         self.weekly_ranking_task.cancel()
         self.book_club_reminder_task.cancel()
         self.book_club_final_reminder_task.cancel()
