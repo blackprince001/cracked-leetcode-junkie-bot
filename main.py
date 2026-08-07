@@ -7,7 +7,7 @@ import discord
 from discord.ext import commands
 
 from commands import ai_commands, message_commands, utility_commands
-from config import DEEPSEEK_API_KEY, GEMINI_API_KEY, TOKEN, WELCOME_CHANNEL_NAME, WORDLE_CHANNEL_NAME
+from config import DEEPSEEK_API_KEY, TOKEN, WELCOME_CHANNEL_NAME
 from db import message_db
 from utils.logging import get_logger, setup_logging
 
@@ -41,8 +41,7 @@ async def on_ready():
   # Initialize scheduled tasks
   from services.scheduled_tasks import setup_scheduled_tasks
 
-  scheduled_tasks = setup_scheduled_tasks(bot)
-  await scheduled_tasks.hydrate_missing_weekly_activity()
+  setup_scheduled_tasks(bot)
 
 
 @bot.event
@@ -93,33 +92,11 @@ async def on_member_remove(member: discord.Member):
 
 @bot.event
 async def on_message(message: discord.Message):
-  # Credit Wordle players — slash command interactions don't fire on_message for the user,
-  # but the Wordle bot's response message contains interaction metadata for the user.
-  if (
-    message.author.bot
-    and message.guild
-    and message.interaction_metadata
-    and hasattr(message.channel, "name")
-    and message.channel.name == WORDLE_CHANNEL_NAME
-  ):
-    interaction = message.interaction_metadata
-    content_hash = hashlib.sha256(str(interaction.id).encode()).hexdigest()
-    await message_db.insert_message(
-      message_id=str(interaction.id),
-      channel_id=str(message.channel.id),
-      guild_id=str(message.guild.id),
-      author_id=str(interaction.user.id),
-      content="[wordle]",
-      content_hash=content_hash,
-      message_url=message.jump_url,
-      created_at=message.created_at,
-    )
-
   # Ignore bot messages
   if message.author.bot:
     return
 
-  # Track message for activity rankings
+  # Log the message
   if message.guild:
     content_hash = hashlib.sha256(str(message.id).encode()).hexdigest()
     await message_db.insert_message(
@@ -178,30 +155,19 @@ async def on_message(message: discord.Message):
 
       ctx = await bot.get_context(message)
       if ctx.guild:
-        from services.ai_service import get_ai_service
+        from services.agent_service import get_agent_service
 
-        ai_service = get_ai_service()
+        agent_service = get_agent_service()
+
+        context_text = ""
+        if reply_chain:
+          thread_history = "\n".join(
+            [f"{m.author.display_name}: {m.content}" for m in reply_chain]
+          )
+          context_text = f"--- CONVERSATION HISTORY ---\n{thread_history}\n--- END HISTORY ---"
 
         async with message.channel.typing():
-          system_msg = (
-            "You are professional, calm, and helpful bot in a Discord server."
-            "Keep responses SHORT and conversational - like texting a friend or co-worker. "
-            "Don't lecture, don't give unsolicited advice, don't be preachy. "
-            "Just answer what's asked. Use casual language."
-          )
-
-          prompt = content
-
-          # Build thread history string
-          if reply_chain:
-            thread_history = "\n".join(
-              [f"{m.author.display_name}: {m.content}" for m in reply_chain]
-            )
-            prompt = f"--- CONVERSATION HISTORY ---\n{thread_history}\n--- END HISTORY ---\n\nUser's new message: {content}"
-
-          response = await ai_service.call_ai(
-            prompt, system_message=system_msg, use_search=True
-          )
+          response = await agent_service.run(content, guild=message.guild, context=context_text)
 
         # Send response as a reply to maintain the thread
         if len(response) > 2000:
@@ -229,8 +195,8 @@ utility_commands.setup_utility_commands(bot)
 if __name__ == "__main__":
   if not TOKEN:
     raise ValueError("Missing DISCORD_BOT_TOKEN in environment variables")
-  if not GEMINI_API_KEY and not DEEPSEEK_API_KEY:
-    raise ValueError("Missing GEMINI_API_KEY or DEEPSEEK_API_KEY in environment variables")
+  if not DEEPSEEK_API_KEY:
+    raise ValueError("Missing DEEPSEEK_API_KEY in environment variables")
 
   logger.info("Starting bot...")
   try:
