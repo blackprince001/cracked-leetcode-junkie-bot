@@ -84,12 +84,14 @@ INSTRUCTIONS = (
   "tagging anyone. Never guess or hand-type a mention.\n"
   "- web_search: look up current or factual info you're not confident about from memory. "
   "Has narrow coverage (mainly well-known reference topics) - it will often come back "
-  "empty, especially for anything specific, current, or numeric (stock prices, scores, "
-  "weather). If it comes back empty, say so honestly instead of guessing or making "
-  "something up.\n"
+  "empty, especially for anything specific or current. If it comes back empty, say so "
+  "honestly instead of guessing or making something up.\n"
   "- fetch_url: open ONE SPECIFIC known URL (a link someone shared, or one web_search "
   "found) and read its actual text content. Use this to answer questions about a "
-  "particular article/page - it's not a search tool, it needs an exact link."
+  "particular article/page - it's not a search tool, it needs an exact link. For stock "
+  "prices specifically, try fetch_url on https://finance.yahoo.com/quote/{TICKER}/ "
+  "(e.g. NVDA -> https://finance.yahoo.com/quote/NVDA/) - that page's plain HTML "
+  "includes the live price, no search needed."
 )
 
 
