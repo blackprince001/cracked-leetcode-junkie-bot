@@ -56,8 +56,8 @@ def setup_utility_commands(bot: commands.Bot):
 
 **Auto-Features:**
 - Mention or reply to the bot to chat with AI
-- Daily LeetCode question + NeetCode 150 problem posted automatically
-- Shuffled LeetCode problem posted automatically at 10:00 PM UTC
+- Daily LeetCode question posted automatically
+- Shuffled LeetCode problem posted automatically at 10:00 AM UTC
 - Shuffled Codeforces problem posted automatically at 3:00 PM UTC
 """
     await ctx.send(help_text)

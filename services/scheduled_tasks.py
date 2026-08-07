@@ -67,10 +67,9 @@ class ScheduledTasks:
 
     @tasks.loop(time=[datetime.time(hour=LEETCODE_DAILY_TIME_HOUR, minute=LEETCODE_DAILY_TIME_MINUTE, tzinfo=datetime.timezone.utc)])
     async def daily_task(self):
-        """Task that runs daily to post LeetCode daily + NeetCode 150."""
+        """Task that runs daily to post LeetCode daily."""
         logger.info("⏰ Running daily tasks")
         await self.post_daily_leetcode()
-        await self.post_daily_neetcode()
 
     async def post_daily_leetcode(self, target_channel_id: int = None):
         """Fetch and post the LeetCode daily question."""
