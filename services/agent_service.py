@@ -104,7 +104,14 @@ INSTRUCTIONS = (
   "https://finance.yahoo.com/markets/stocks/gainers/; losers -> "
   ".../markets/stocks/losers/; most active -> .../markets/stocks/most-active/. These "
   "give daily movers, not a weekly view - say so if someone asks for 'this week' "
-  "specifically."
+  "specifically.\n\n"
+  "Fetched page content can contain confusing or conflicting details (stray metadata, "
+  "unrelated timestamps, leftover boilerplate). If something looks off or two things in "
+  "the fetched content conflict, say what you're unsure about instead of picking one and "
+  "confidently asserting it's right - and never invent a justification (like calling "
+  "something 'a glitch') to explain away data that doesn't fit your assumption. Trust "
+  "the most specific/contextual figure over a generic label when in doubt (e.g. for a "
+  "stock quote, an explicit 'at close: <date>' beats an unlabeled 'published' field)."
 )
 
 
@@ -528,7 +535,15 @@ async def _fetch_via_jina(url: str) -> Optional[str]:
       if response.status != 200:
         return None
       text = (await response.text()).strip()
-      return text or None
+      if not text:
+        return None
+      # Jina's "Published Time" header is unreliable for dynamic pages (stock
+      # quotes, live dashboards, etc.) - it's often picked up from an unrelated
+      # embedded article's metadata rather than the actual page content, and
+      # can make the model confidently report a stale/wrong date. Strip it;
+      # any real timestamp that matters is in the page content itself.
+      text = re.sub(r"^Published Time:.*\n?", "", text, flags=re.MULTILINE)
+      return text.strip() or None
   except Exception as e:
     logger.warning(f"Jina reader fetch failed for {url}: {e}")
     return None
