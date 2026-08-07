@@ -12,8 +12,9 @@ def setup_ai_commands(bot: commands.Bot):
 
   @bot.command()
   async def chat(ctx, *, message: str):
-    """Main AI chat command. The agent can pull in channel context, look up
-    members, search DSA problems, or search the web on its own via tools."""
+    """Main AI chat command. Remembers your conversation in this channel, and
+    the agent can pull in channel context, look up members, search DSA
+    problems, or search the web on its own via tools."""
     if not message:
       await ctx.send("Please provide a message to chat with the AI!")
       return
@@ -25,7 +26,9 @@ def setup_ai_commands(bot: commands.Bot):
     logger.info(f"💬 Chat from {ctx.author.display_name}: {message[:50]}...")
 
     async with ctx.typing():
-      response = await agent_service.run(message, guild=ctx.guild)
+      response = await agent_service.run(
+        message, guild=ctx.guild, channel_id=ctx.channel.id, user_id=ctx.author.id
+      )
 
     logger.info(f"💬 Response sent to {ctx.author.display_name}")
     await send_long_message(ctx, response)

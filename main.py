@@ -110,27 +110,16 @@ async def on_message(message: discord.Message):
       created_at=message.created_at,
     )
 
-  # Check if this is a reply to the bot's message
+  # Check if this is a reply to the bot's message. (No manual history stitching
+  # needed beyond this - the agent's per-channel-per-user session remembers the
+  # actual conversation automatically.)
   is_reply_to_bot = False
-  reply_chain = []
-
   if message.reference and message.reference.message_id:
     try:
-      # Recursively fetch up to 5 previous messages in the chain to build context
-      curr_msg = message
-      for _ in range(5):
-        if not curr_msg.reference or not curr_msg.reference.message_id:
-          break
-
-        prev_msg = await message.channel.fetch_message(curr_msg.reference.message_id)
-        reply_chain.append(prev_msg)
-        curr_msg = prev_msg
-
-        # Check if the original message was replying to the bot
-        if curr_msg.author == bot.user and curr_msg.id == message.reference.message_id:
-          is_reply_to_bot = True
-
-      reply_chain.reverse()  # Oldest to newest
+      parent = message.reference.cached_message or await message.channel.fetch_message(
+        message.reference.message_id
+      )
+      is_reply_to_bot = bool(bot.user) and parent.author.id == bot.user.id
     except discord.NotFound:
       pass
 
@@ -159,15 +148,13 @@ async def on_message(message: discord.Message):
 
         agent_service = get_agent_service()
 
-        context_text = ""
-        if reply_chain:
-          thread_history = "\n".join(
-            [f"{m.author.display_name}: {m.content}" for m in reply_chain]
-          )
-          context_text = f"--- CONVERSATION HISTORY ---\n{thread_history}\n--- END HISTORY ---"
-
         async with message.channel.typing():
-          response = await agent_service.run(content, guild=message.guild, context=context_text)
+          response = await agent_service.run(
+            content,
+            guild=message.guild,
+            channel_id=message.channel.id,
+            user_id=message.author.id,
+          )
 
         # Send response as a reply to maintain the thread
         if len(response) > 2000:
