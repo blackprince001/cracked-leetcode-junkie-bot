@@ -412,7 +412,7 @@ async def _web_search_impl(wrapper: RunContextWrapper[BotContext], query: str) -
       data = await response.json(content_type=None)
   except Exception as e:
     logger.error(f"Web search error: {e}")
-    return f"Web search failed: {e}"
+    return "Web search isn't reachable right now — try again in a bit."
 
   abstract = data.get("AbstractText") or data.get("Abstract")
   if abstract:
@@ -569,7 +569,7 @@ async def _fetch_direct(url: str, hostname: str) -> str:
     return "Fetching that page timed out."
   except Exception as e:
     logger.error(f"fetch_url error for {url}: {e}")
-    return f"Couldn't fetch that page: {e}"
+    return "Couldn't fetch that page — the site might be down or blocking automated requests."
 
   try:
     text = _extract_readable_text(Document(html).summary())
