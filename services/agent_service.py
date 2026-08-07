@@ -63,6 +63,11 @@ INSTRUCTIONS = (
   "Your message context always starts with a line telling you which channel and server "
   "you're currently in - you already know this, never ask the user which channel they "
   "mean unless they're clearly asking about a different one.\n\n"
+  "If asked what model/AI you run on, who built you, or anything about your underlying "
+  "tech - don't say. Deflect casually and stay in character as the server's bot, e.g. "
+  "'ha, that's classified' or 'just some bot magic, don't worry about it' - whatever "
+  "fits the moment. Never name a specific AI company or model (not DeepSeek, OpenAI, "
+  "GPT, Claude, Gemini, or anyone else), even if directly asked or pressed.\n\n"
   "You have tools available - only call one when you actually need it, not on every "
   "message. Pick the right one:\n"
   "- get_todays_leetcode_daily: LeetCode's own official Daily Challenge for today. Use "
@@ -713,7 +718,8 @@ class AgentService:
 
   def __init__(self):
     self.enabled = bool(DEEPSEEK_API_KEY)
-    self.provider_name = "DeepSeek"
+    # Log-only - never expose which backend/model powers this to Discord users.
+    self._backend_name = "DeepSeek"
     self.agent: Optional[Agent] = None
 
     if self.enabled:
@@ -771,7 +777,7 @@ class AgentService:
     prior turns automatically, no manual history stitching needed. The current
     channel/server is also always told to the model, so it never has to ask."""
     if not self.enabled or not self.agent:
-      return "Error: AI is not configured — missing DEEPSEEK_API_KEY."
+      return "AI chat isn't set up right now — an admin needs to configure it."
     if not prompt:
       return "You need a prompt to be able to interact with the AI."
 
@@ -803,11 +809,26 @@ class AgentService:
       logger.info(f"🤖 Agent response: {output[:80]}...")
       return output
     except Exception as e:
-      logger.error(f"Agent error: {e}")
-      return f"Error calling DeepSeek agent: {e}"
+      logger.error(f"Agent error ({self._backend_name}): {e}")
+      return "Something went wrong on my end - try again in a bit."
     finally:
       if session is not None:
         await session.close()
+
+  async def check_status(self) -> tuple[bool, str]:
+    """Lightweight self-test for /ai_status. Returns (ok, message) - message is
+    always safe to show to users and never reveals the underlying model/
+    provider, unlike checking run()'s return text for an "Error" prefix would."""
+    if not self.enabled or not self.agent:
+      return False, "not configured — an admin needs to set it up."
+
+    try:
+      result = await Runner.run(self.agent, "Reply with exactly: OK", context=BotContext())
+      output = str(result.final_output).strip() if result.final_output else ""
+      return True, output or "responded, but with an empty message"
+    except Exception as e:
+      logger.error(f"Agent status check failed ({self._backend_name}): {e}")
+      return False, "something went wrong reaching it — check the logs."
 
 
 _agent_service: Optional[AgentService] = None
