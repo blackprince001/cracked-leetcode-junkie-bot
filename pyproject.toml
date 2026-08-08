@@ -8,8 +8,9 @@ dependencies = [
     "aiohttp>=3.13.2",
     "aiosqlite>=0.22.0",
     "discord-py>=2.6.4",
-    "google-genai>=1.55.0",
+    "openai-agents>=0.19.4",
     "python-dotenv>=1.2.1",
+    "readability-lxml>=0.8.4.1",
 ]
 
 [tool.uv]

@@ -23,7 +23,7 @@ def setup_utility_commands(bot: commands.Bot):
     help_text = """
 **Bot Commands:**
 
-`/chat <message>` - Chat with the AI (uses Google Search for up-to-date info)
+`/chat <message>` - Chat with the AI agent (can look up members, channel context, DSA problems, and the web on its own)
 `/ai_status` - Check if the AI is working
 
 **Message Rotation:**
@@ -39,9 +39,12 @@ def setup_utility_commands(bot: commands.Bot):
 `/force_neetcode` - Manually trigger the next NeetCode 150 problem (Admin only)
 `/neetcode_progress` - Show NeetCode 150 progress
 
-**Activity Rankings:**
+**Daily DSA (shuffled LeetCode + Codeforces):**
 
-`/force_weekly_ranking` - Manually trigger the weekly activity report + purge (Admin only)
+`/force_dsa_leetcode` - Manually trigger today's shuffled LeetCode problem (Admin only)
+`/force_dsa_codeforces` - Manually trigger today's shuffled Codeforces problem (Admin only)
+`/dsa_progress` - Show progress through the shuffled LeetCode + Codeforces rotations
+`/force_dsa_summary` - Manually trigger today's DSA thread wrap-up (Admin only)
 
 **Utility:**
 
@@ -50,7 +53,10 @@ def setup_utility_commands(bot: commands.Bot):
 
 **Auto-Features:**
 - Mention or reply to the bot to chat with AI
-- Daily LeetCode question + NeetCode 150 problem posted automatically
+- Daily LeetCode question posted automatically
+- Shuffled LeetCode problem posted automatically at 10:00 AM UTC
+- Shuffled Codeforces problem auto-post is currently disabled (use `/force_dsa_codeforces`)
+- Nightly DSA wrap-up posted automatically at 10:00 PM UTC (who dropped a solution in today's threads)
 """
     await ctx.send(help_text)
 
@@ -100,8 +106,64 @@ def setup_utility_commands(bot: commands.Bot):
     await message.create_thread(name=f"🧵 NC150: {problem['title']}", auto_archive_duration=1440)
 
   @bot.command()
-  async def force_weekly_ranking(ctx):
-    """Manually trigger the weekly activity ranking (Admin only)."""
+  async def force_dsa_leetcode(ctx):
+    """Manually triggers today's shuffled LeetCode problem (Admin only)."""
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("❌ You need administrator permissions to use this command.")
+        return
+
+    await ctx.send("⏳ Getting today's shuffled LeetCode problem...")
+
+    from services.dsa_daily_service import get_dsa_daily_service
+    dsa_daily_service = get_dsa_daily_service()
+
+    lc_problem, lc_pos, lc_total = dsa_daily_service.get_next_leetcode()
+    if not lc_problem:
+        await ctx.send("❌ Failed to get LeetCode problem. Check logs.")
+        return
+
+    embed = dsa_daily_service.create_leetcode_embed(lc_problem, lc_pos, lc_total)
+    message = await ctx.send(embed=embed)
+    await message.create_thread(name=f"🧵 {lc_problem['title']}", auto_archive_duration=1440)
+
+  @bot.command()
+  async def force_dsa_codeforces(ctx):
+    """Manually triggers today's shuffled Codeforces problem (Admin only)."""
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("❌ You need administrator permissions to use this command.")
+        return
+
+    await ctx.send("⏳ Getting today's shuffled Codeforces problem...")
+
+    from services.dsa_daily_service import get_dsa_daily_service
+    dsa_daily_service = get_dsa_daily_service()
+
+    cf_problem, cf_pos, cf_total = dsa_daily_service.get_next_codeforces()
+    if not cf_problem:
+        await ctx.send("❌ Failed to get Codeforces problem. Check logs.")
+        return
+
+    embed = dsa_daily_service.create_codeforces_embed(cf_problem, cf_pos, cf_total)
+    message = await ctx.send(embed=embed)
+    await message.create_thread(name=f"🧵 {cf_problem['title']}", auto_archive_duration=1440)
+
+  @bot.command()
+  async def dsa_progress(ctx):
+    """Show progress through the shuffled LeetCode + Codeforces rotations."""
+    from services.dsa_daily_service import get_dsa_daily_service
+    dsa_daily_service = get_dsa_daily_service()
+
+    (lc_next, lc_total), (cf_next, cf_total) = dsa_daily_service.get_progress()
+
+    await ctx.send(
+        f"📋 **Daily DSA Progress:**\n"
+        f"LeetCode: {lc_next}/{lc_total}\n"
+        f"Codeforces: {cf_next}/{cf_total}"
+    )
+
+  @bot.command()
+  async def force_dsa_summary(ctx):
+    """Manually triggers today's DSA thread wrap-up (Admin only)."""
     if ctx.guild is None:
       await ctx.send("❌ This command only works inside a server.")
       return
@@ -110,20 +172,18 @@ def setup_utility_commands(bot: commands.Bot):
       await ctx.send("❌ You need administrator permissions to use this command.")
       return
 
-    await ctx.send("📊 Generating weekly activity report...")
+    await ctx.send("📊 Building today's DSA wrap-up...")
 
     from services.scheduled_tasks import _scheduled_tasks_instance
     if _scheduled_tasks_instance is None:
       await ctx.send("❌ Scheduled tasks not initialized. Try again after the bot is fully ready.")
       return
 
-    posted = await _scheduled_tasks_instance._post_weekly_ranking_for_guild(
-      ctx.guild,
-      ctx.channel,
-      dry_run=True,
+    posted = await _scheduled_tasks_instance.post_daily_dsa_summary(
+      target_channel_id=ctx.channel.id
     )
     if not posted:
-      await ctx.send("❌ Weekly activity report failed. Check the bot logs for the guild-specific error.")
+      await ctx.send("No DSA threads found for today in this channel.")
 
   @bot.command()
   async def neetcode_progress(ctx):
